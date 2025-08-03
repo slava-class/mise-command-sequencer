@@ -1,6 +1,14 @@
 [package]
-name = "mise_command_sequencer"
+name = "mise-command-sequencer"
 version = "0.1.0"
 edition = "2024"
 
 [dependencies]
+anyhow = "1.0.98"
+ratatui = "0.29.0"
+serde = "1.0.219"
+tokio = "1.47.1"
+
+[[bin]]
+name = "mise-command-sequencer"
+path = "src/main.rs"
