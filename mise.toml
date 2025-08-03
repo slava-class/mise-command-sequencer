@@ -6,3 +6,4 @@ trunk = "latest"
 [tasks]
 fmt = "trunk fmt --all"
 check = "trunk check --all"
+repomix = "bunx repomix --copy"
