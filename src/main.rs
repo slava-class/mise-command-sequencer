@@ -48,6 +48,12 @@ pub struct MiseTaskInfo {
 #[derive(Clone)]
 pub struct MiseClient;
 
+impl Default for MiseClient {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl MiseClient {
     pub fn new() -> Self {
         Self
@@ -56,7 +62,7 @@ impl MiseClient {
     /// List all available mise tasks
     pub async fn list_tasks(&self) -> Result<Vec<MiseTask>> {
         let output = Command::new("mise")
-            .args(&["tasks", "ls", "--json"])
+            .args(["tasks", "ls", "--json"])
             .output()
             .await
             .context("Failed to execute mise tasks ls --json")?;
@@ -77,7 +83,7 @@ impl MiseClient {
     /// Get detailed information about a specific task
     pub async fn get_task_info(&self, task_name: &str) -> Result<MiseTaskInfo> {
         let output = Command::new("mise")
-            .args(&["tasks", "info", task_name, "--json"])
+            .args(["tasks", "info", task_name, "--json"])
             .output()
             .await
             .context("Failed to execute mise tasks info")?;
@@ -122,7 +128,7 @@ impl MiseClient {
             let reader = BufReader::new(stdout);
             let mut lines = reader.lines();
             while let Ok(Some(line)) = lines.next_line().await {
-                if output_tx_clone.send(format!("STDOUT: {}", line)).is_err() {
+                if output_tx_clone.send(format!("STDOUT: {line}")).is_err() {
                     break;
                 }
             }
@@ -133,7 +139,7 @@ impl MiseClient {
             let reader = BufReader::new(stderr);
             let mut lines = reader.lines();
             while let Ok(Some(line)) = lines.next_line().await {
-                if output_tx_clone.send(format!("STDERR: {}", line)).is_err() {
+                if output_tx_clone.send(format!("STDERR: {line}")).is_err() {
                     break;
                 }
             }
@@ -143,7 +149,7 @@ impl MiseClient {
         let status = child.wait().await?;
 
         let final_message = if status.success() {
-            format!("Task '{}' completed successfully", task_name)
+            format!("Task '{task_name}' completed successfully")
         } else {
             format!(
                 "Task '{}' failed with exit code: {:?}",
@@ -248,7 +254,7 @@ impl App {
                     let _ = event_tx.send(AppEvent::TasksRefreshed(tasks));
                 }
                 Err(e) => {
-                    eprintln!("Failed to refresh tasks: {}", e);
+                    eprintln!("Failed to refresh tasks: {e}");
                 }
             }
         });
@@ -286,7 +292,7 @@ impl App {
                         let _ = event_tx.send(AppEvent::TaskInfoLoaded(info));
                     }
                     Err(e) => {
-                        eprintln!("Failed to get task info: {}", e);
+                        eprintln!("Failed to get task info: {e}");
                     }
                 }
             });
@@ -308,7 +314,7 @@ impl App {
 
             tokio::spawn(async move {
                 if let Err(e) = client.run_task(&task_name, &[], output_tx).await {
-                    eprintln!("Failed to run task: {}", e);
+                    eprintln!("Failed to run task: {e}");
                 }
                 let _ = event_tx.send(AppEvent::TaskCompleted);
             });
@@ -451,7 +457,7 @@ impl App {
         // Header
         let header = Block::default()
             .borders(Borders::ALL)
-            .title(format!("Task Details: {}", task_name))
+            .title(format!("Task Details: {task_name}"))
             .border_style(Style::default().fg(Color::Blue));
 
         f.render_widget(
@@ -469,19 +475,19 @@ impl App {
             ];
 
             if let Some(desc) = &info.description {
-                details.push(format!("Description: {}", desc));
+                details.push(format!("Description: {desc}"));
             }
 
             if let Some(file) = &info.file {
-                details.push(format!("File: {}", file));
+                details.push(format!("File: {file}"));
             }
 
             if let Some(dir) = &info.dir {
-                details.push(format!("Directory: {}", dir));
+                details.push(format!("Directory: {dir}"));
             }
 
             if let Some(alias) = &info.alias {
-                details.push(format!("Alias: {}", alias));
+                details.push(format!("Alias: {alias}"));
             }
 
             if let Some(deps) = &info.depends {
@@ -491,7 +497,7 @@ impl App {
             if let Some(env) = &info.env {
                 details.push("Environment Variables:".to_string());
                 for (key, value) in env {
-                    details.push(format!("  {} = {}", key, value));
+                    details.push(format!("  {key} = {value}"));
                 }
             }
 
@@ -538,7 +544,7 @@ impl App {
         // Header
         let header = Block::default()
             .borders(Borders::ALL)
-            .title(format!("Running Task: {}", task_name))
+            .title(format!("Running Task: {task_name}"))
             .border_style(Style::default().fg(Color::Green));
 
         f.render_widget(
@@ -600,10 +606,10 @@ async fn main() -> Result<()> {
         loop {
             if event::poll(Duration::from_millis(100)).unwrap_or(false) {
                 if let Ok(Event::Key(key)) = event::read() {
-                    if key.kind == KeyEventKind::Press {
-                        if input_event_tx.send(AppEvent::KeyPress(key.code)).is_err() {
-                            break;
-                        }
+                    if key.kind == KeyEventKind::Press
+                        && input_event_tx.send(AppEvent::KeyPress(key.code)).is_err()
+                    {
+                        break;
                     }
                 }
             }
