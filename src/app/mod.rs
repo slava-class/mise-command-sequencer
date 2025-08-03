@@ -14,6 +14,7 @@ pub struct App {
     pub client: MiseClient,
     pub tasks: Vec<MiseTask>,
     pub selected_task: usize,
+    pub scroll_offset: usize,
     pub state: AppState,
     pub task_info: Option<MiseTaskInfo>,
     pub task_output: VecDeque<String>,
@@ -31,6 +32,7 @@ impl App {
             client: MiseClient::new(),
             tasks: vec![],
             selected_task: 0,
+            scroll_offset: 0,
             state: AppState::SequenceBuilder,
             task_info: None,
             task_output: VecDeque::new(),
@@ -77,6 +79,51 @@ impl App {
         }
     }
 
+    pub fn ensure_selected_task_visible(&mut self, visible_height: usize) {
+        if self.tasks.is_empty() || visible_height == 0 {
+            return;
+        }
+
+        // Ensure selected task is within visible range
+        if self.selected_task < self.scroll_offset {
+            // Selected task is above visible area, scroll up
+            self.scroll_offset = self.selected_task;
+        } else if self.selected_task >= self.scroll_offset + visible_height {
+            // Selected task is below visible area, scroll down
+            self.scroll_offset = self.selected_task.saturating_sub(visible_height - 1);
+        }
+    }
+
+    pub fn scroll_up(&mut self, lines: usize) {
+        self.scroll_offset = self.scroll_offset.saturating_sub(lines);
+    }
+
+    pub fn scroll_down(&mut self, lines: usize, visible_height: usize) {
+        if self.tasks.is_empty() {
+            return;
+        }
+        
+        let max_scroll = self.tasks.len().saturating_sub(visible_height);
+        self.scroll_offset = (self.scroll_offset + lines).min(max_scroll);
+    }
+
+    pub fn get_visible_tasks(&self, visible_height: usize) -> (Vec<&MiseTask>, usize) {
+        if self.tasks.is_empty() {
+            return (vec![], 0);
+        }
+
+        let end = (self.scroll_offset + visible_height).min(self.tasks.len());
+        let visible_tasks = self.tasks[self.scroll_offset..end].iter().collect();
+        let selected_in_visible = if self.selected_task >= self.scroll_offset 
+            && self.selected_task < self.scroll_offset + visible_height {
+            Some(self.selected_task - self.scroll_offset)
+        } else {
+            None
+        };
+
+        (visible_tasks, selected_in_visible.unwrap_or(0))
+    }
+
     pub fn back_to_list(&mut self) {
         self.state = AppState::List;
         self.task_info = None;
@@ -102,6 +149,7 @@ mod tests {
 
         assert_eq!(app.tasks.len(), 0);
         assert_eq!(app.selected_task, 0);
+        assert_eq!(app.scroll_offset, 0);
         assert_eq!(app.state, AppState::SequenceBuilder);
         assert!(app.task_info.is_none());
         assert_eq!(app.task_output.len(), 0);

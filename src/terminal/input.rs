@@ -3,6 +3,7 @@ use std::time::Duration;
 use tokio::{sync::mpsc, time::sleep};
 
 use crate::models::AppEvent;
+use crate::models::app_event::ScrollDirection;
 
 pub fn spawn_input_handler(event_tx: mpsc::UnboundedSender<AppEvent>) {
     tokio::spawn(async move {
@@ -17,17 +18,44 @@ pub fn spawn_input_handler(event_tx: mpsc::UnboundedSender<AppEvent>) {
                         }
                     }
                     Ok(Event::Mouse(mouse)) => {
-                        if let MouseEventKind::Down(button) = mouse.kind {
-                            if event_tx
-                                .send(AppEvent::MouseClick {
-                                    button,
-                                    row: mouse.row,
-                                    col: mouse.column,
-                                })
-                                .is_err()
-                            {
-                                break;
+                        match mouse.kind {
+                            MouseEventKind::Down(button) => {
+                                if event_tx
+                                    .send(AppEvent::MouseClick {
+                                        button,
+                                        row: mouse.row,
+                                        col: mouse.column,
+                                    })
+                                    .is_err()
+                                {
+                                    break;
+                                }
                             }
+                            MouseEventKind::ScrollUp => {
+                                if event_tx
+                                    .send(AppEvent::MouseScroll {
+                                        direction: ScrollDirection::Up,
+                                        row: mouse.row,
+                                        col: mouse.column,
+                                    })
+                                    .is_err()
+                                {
+                                    break;
+                                }
+                            }
+                            MouseEventKind::ScrollDown => {
+                                if event_tx
+                                    .send(AppEvent::MouseScroll {
+                                        direction: ScrollDirection::Down,
+                                        row: mouse.row,
+                                        col: mouse.column,
+                                    })
+                                    .is_err()
+                                {
+                                    break;
+                                }
+                            }
+                            _ => {}
                         }
                     }
                     _ => {}

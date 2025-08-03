@@ -51,6 +51,14 @@ fn draw_matrix_interface(app: &mut App, f: &mut Frame, area: Rect) {
     // Calculate and store table layout for mouse click detection
     app.table_layout = Some(calculate_table_layout(area, num_steps));
 
+    // Calculate available height for task rows (subtract header + borders)
+    let available_height = area.height.saturating_sub(3); // Header + top/bottom borders
+    let visible_height = available_height as usize;
+
+    // Ensure selected task is visible and get visible tasks
+    app.ensure_selected_task_visible(visible_height);
+    let (visible_tasks, _selected_in_visible) = app.get_visible_tasks(visible_height);
+
     // Create headers: Task Name, Step 1, Step 2, Step 3, Actions
     let mut header_cells =
         vec![Cell::from("Task Name").style(Style::default().add_modifier(Modifier::BOLD))];
@@ -63,13 +71,14 @@ fn draw_matrix_interface(app: &mut App, f: &mut Frame, area: Rect) {
 
     let header = Row::new(header_cells).height(1);
 
-    // Create rows for each task
+    // Create rows for visible tasks only
     let mut rows = Vec::new();
-    for (index, task) in app.tasks.iter().enumerate() {
+    for (visible_index, task) in visible_tasks.iter().enumerate() {
         let mut cells = Vec::new();
+        let actual_index = app.scroll_offset + visible_index;
 
         // Task name cell with selection indicator
-        let task_name_style = if index == app.selected_task {
+        let task_name_style = if actual_index == app.selected_task {
             Style::default()
                 .fg(Color::Yellow)
                 .add_modifier(Modifier::BOLD)
@@ -77,7 +86,7 @@ fn draw_matrix_interface(app: &mut App, f: &mut Frame, area: Rect) {
             Style::default()
         };
 
-        let task_name_text = if index == app.selected_task {
+        let task_name_text = if actual_index == app.selected_task {
             format!("> {}", task.name)
         } else {
             format!("  {}", task.name)
@@ -112,11 +121,20 @@ fn draw_matrix_interface(app: &mut App, f: &mut Frame, area: Rect) {
     }
     constraints.push(Constraint::Min(20)); // Actions column
 
+    // Create table title with scroll indicators
+    let mut title = "Available Tasks".to_string();
+    if app.tasks.len() > visible_height {
+        let total_tasks = app.tasks.len();
+        let start_task = app.scroll_offset + 1;
+        let end_task = (app.scroll_offset + visible_height).min(total_tasks);
+        title = format!("Available Tasks ({start_task}-{end_task}/{total_tasks})");
+    }
+
     let table = Table::new(rows, constraints)
         .header(header)
         .block(
             Block::default()
-                .title("Available Tasks")
+                .title(title)
                 .borders(Borders::ALL),
         )
         .row_highlight_style(Style::default().add_modifier(Modifier::REVERSED))
@@ -179,7 +197,7 @@ fn draw_task_output(app: &App, f: &mut Frame, area: Rect) {
 
 fn draw_controls(f: &mut Frame, area: Rect) {
     let controls = Paragraph::new(
-        "↑/↓: Navigate | 1/2/3: Toggle step | Enter: Run sequence | x: Run task | e: Edit | Tab: Info | c: Clear | q: Quit"
+        "↑/↓: Navigate | PgUp/PgDn/Mouse wheel: Scroll | 1/2/3: Toggle step | Enter: Run sequence | x: Run task | e: Edit | Tab: Info | c: Clear | q: Quit"
     )
     .block(
         Block::default()

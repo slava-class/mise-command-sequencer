@@ -4,6 +4,7 @@ use std::time::Instant;
 
 use super::App;
 use crate::models::{AppEvent, AppState, SequenceEvent};
+use crate::models::app_event::ScrollDirection;
 
 impl App {
     pub async fn handle_event(&mut self, event: AppEvent) -> Result<()> {
@@ -12,6 +13,9 @@ impl App {
             AppEvent::KeyPress(key) => self.handle_key(key).await?,
             AppEvent::MouseClick { button, row, col } => {
                 self.handle_mouse_click(button, row, col).await?
+            }
+            AppEvent::MouseScroll { direction, row: _, col: _ } => {
+                self.handle_mouse_scroll(direction).await?
             }
             AppEvent::TasksRefreshed(tasks) => {
                 self.tasks = tasks;
@@ -63,6 +67,30 @@ impl App {
             // Sequence Builder controls
             (AppState::SequenceBuilder, KeyCode::Down | KeyCode::Char('j')) => self.select_next(),
             (AppState::SequenceBuilder, KeyCode::Up | KeyCode::Char('k')) => self.select_previous(),
+            (AppState::SequenceBuilder, KeyCode::PageDown) => {
+                let visible_height = if let Some(layout) = &self.table_layout {
+                    (layout.table_area.height.saturating_sub(3)) as usize
+                } else {
+                    10 // Fallback if layout not yet calculated
+                };
+                self.scroll_down(visible_height, visible_height);
+                // Move selection to the first visible task after scrolling
+                if self.selected_task < self.scroll_offset {
+                    self.selected_task = self.scroll_offset;
+                }
+            },
+            (AppState::SequenceBuilder, KeyCode::PageUp) => {
+                let visible_height = if let Some(layout) = &self.table_layout {
+                    (layout.table_area.height.saturating_sub(3)) as usize
+                } else {
+                    10 // Fallback if layout not yet calculated
+                };
+                self.scroll_up(visible_height);
+                // Adjust selection if it's now below the visible area
+                if self.selected_task >= self.scroll_offset + visible_height {
+                    self.selected_task = (self.scroll_offset + visible_height - 1).min(self.tasks.len().saturating_sub(1));
+                }
+            },
             (AppState::SequenceBuilder, KeyCode::Char('1')) => self.toggle_current_task_step(0)?,
             (AppState::SequenceBuilder, KeyCode::Char('2')) => self.toggle_current_task_step(1)?,
             (AppState::SequenceBuilder, KeyCode::Char('3')) => self.toggle_current_task_step(2)?,
@@ -84,6 +112,33 @@ impl App {
             }
 
             _ => {}
+        }
+        Ok(())
+    }
+
+    pub async fn handle_mouse_scroll(&mut self, direction: ScrollDirection) -> Result<()> {
+        match &self.state {
+            AppState::SequenceBuilder => {
+                // Get the actual visible height from the table layout if available
+                let visible_height = if let Some(layout) = &self.table_layout {
+                    // Calculate visible height: total area minus header and borders
+                    (layout.table_area.height.saturating_sub(3)) as usize
+                } else {
+                    10 // Fallback if layout not yet calculated
+                };
+                
+                match direction {
+                    ScrollDirection::Up => {
+                        self.scroll_up(3); // Scroll 3 lines at a time
+                    }
+                    ScrollDirection::Down => {
+                        self.scroll_down(3, visible_height); // Scroll 3 lines at a time
+                    }
+                }
+            }
+            _ => {
+                // Handle scrolling in other states if needed
+            }
         }
         Ok(())
     }
@@ -121,10 +176,11 @@ impl App {
         // Header row is at y + 1, data rows start at y + 2
         let table_start_row = table_layout.table_area.y;
         if row >= table_start_row + 2 {
-            let task_index = (row - table_start_row - 2) as usize;
-            if task_index < self.tasks.len() {
+            let visible_task_index = (row - table_start_row - 2) as usize;
+            let actual_task_index = self.scroll_offset + visible_task_index;
+            if actual_task_index < self.tasks.len() {
                 // Update selected task
-                self.selected_task = task_index;
+                self.selected_task = actual_task_index;
 
                 // Use the calculated column rectangles for accurate hit detection
                 let num_steps = 3;

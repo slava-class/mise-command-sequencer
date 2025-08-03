@@ -12,12 +12,23 @@ pub enum AppEvent {
         row: u16,
         col: u16,
     },
+    MouseScroll {
+        direction: ScrollDirection,
+        row: u16,
+        col: u16,
+    },
     TasksRefreshed(Vec<MiseTask>),
     TaskInfoLoaded(Box<MiseTaskInfo>),
     TaskOutput(String),
     TaskCompleted,
     Tick,
     Sequence(SequenceEvent),
+}
+
+#[derive(Debug, Clone)]
+pub enum ScrollDirection {
+    Up,
+    Down,
 }
 
 #[cfg(test)]
@@ -103,6 +114,39 @@ mod tests {
         match seq_event {
             AppEvent::Sequence(SequenceEvent::RunSequence) => assert!(true),
             _ => panic!("Expected Sequence variant with RunSequence"),
+        }
+    }
+
+    #[test]
+    fn test_mouse_scroll_event() {
+        let scroll_up = AppEvent::MouseScroll {
+            direction: ScrollDirection::Up,
+            row: 5,
+            col: 10,
+        };
+
+        let scroll_down = AppEvent::MouseScroll {
+            direction: ScrollDirection::Down,
+            row: 15,
+            col: 25,
+        };
+
+        match scroll_up {
+            AppEvent::MouseScroll { direction, row, col } => {
+                assert!(matches!(direction, ScrollDirection::Up));
+                assert_eq!(row, 5);
+                assert_eq!(col, 10);
+            }
+            _ => panic!("Expected MouseScroll variant"),
+        }
+
+        match scroll_down {
+            AppEvent::MouseScroll { direction, row, col } => {
+                assert!(matches!(direction, ScrollDirection::Down));
+                assert_eq!(row, 15);
+                assert_eq!(col, 25);
+            }
+            _ => panic!("Expected MouseScroll variant"),
         }
     }
 }
