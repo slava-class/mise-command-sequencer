@@ -175,8 +175,8 @@ pub enum AppState {
 pub enum AppEvent {
     Quit,
     KeyPress(KeyCode),
-    TasksRefreshed(Vec<MiseTask>),
-    TaskInfoLoaded(MiseTaskInfo),
+    TasksRefreshed(Box<Vec<MiseTask>>),
+    TaskInfoLoaded(Box<MiseTaskInfo>),
     TaskOutput(String),
     TaskCompleted,
     Tick,
@@ -221,11 +221,11 @@ impl App {
             AppEvent::Quit => self.should_quit = true,
             AppEvent::KeyPress(key) => self.handle_key(key).await?,
             AppEvent::TasksRefreshed(tasks) => {
-                self.tasks = tasks;
+                self.tasks = *tasks;
                 self.last_updated = Instant::now();
             }
             AppEvent::TaskInfoLoaded(info) => {
-                self.task_info = Some(info);
+                self.task_info = Some(*info);
             }
             AppEvent::TaskOutput(output) => {
                 self.task_output.push_back(output);
@@ -251,7 +251,7 @@ impl App {
         tokio::spawn(async move {
             match client.list_tasks().await {
                 Ok(tasks) => {
-                    let _ = event_tx.send(AppEvent::TasksRefreshed(tasks));
+                    let _ = event_tx.send(AppEvent::TasksRefreshed(Box::new(tasks)));
                 }
                 Err(e) => {
                     eprintln!("Failed to refresh tasks: {e}");
@@ -289,7 +289,7 @@ impl App {
             tokio::spawn(async move {
                 match client.get_task_info(&task_name).await {
                     Ok(info) => {
-                        let _ = event_tx.send(AppEvent::TaskInfoLoaded(info));
+                        let _ = event_tx.send(AppEvent::TaskInfoLoaded(Box::new(info)));
                     }
                     Err(e) => {
                         eprintln!("Failed to get task info: {e}");
