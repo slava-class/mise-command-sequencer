@@ -31,6 +31,8 @@ pub struct App {
     pub running_task_handle: Option<JoinHandle<()>>,
     pub button_hover_state: Option<ButtonHoverState>,
     pub current_visible_height: usize,
+    pub output_scroll_offset: usize,
+    pub current_output_visible_height: usize,
 }
 
 impl App {
@@ -54,6 +56,8 @@ impl App {
             running_task_handle: None,
             button_hover_state: None,
             current_visible_height: 0,
+            output_scroll_offset: 0,
+            current_output_visible_height: 0,
         }
     }
 
@@ -147,6 +151,41 @@ impl App {
         self.running_task_handle = None;
         self.button_hover_state = None;
         self.current_visible_height = 0;
+        self.output_scroll_offset = 0;
+        self.current_output_visible_height = 0;
+    }
+
+    pub fn scroll_output_up(&mut self, lines: usize) {
+        self.output_scroll_offset = self.output_scroll_offset.saturating_sub(lines);
+    }
+
+    pub fn scroll_output_down(&mut self, lines: usize) {
+        let visible_height = self.current_output_visible_height;
+        if self.task_output.len() <= visible_height || visible_height == 0 {
+            return;
+        }
+
+        let max_scroll = self.task_output.len().saturating_sub(visible_height);
+        self.output_scroll_offset = (self.output_scroll_offset + lines).min(max_scroll);
+    }
+
+    pub fn scroll_output_half_page_up(&mut self) {
+        let half_page = self.current_output_visible_height / 2;
+        self.scroll_output_up(half_page.max(1));
+    }
+
+    pub fn scroll_output_half_page_down(&mut self) {
+        let half_page = self.current_output_visible_height / 2;
+        self.scroll_output_down(half_page.max(1));
+    }
+
+    pub fn auto_scroll_output_to_bottom(&mut self) {
+        let visible_height = self.current_output_visible_height;
+        if self.task_output.len() > visible_height && visible_height > 0 {
+            self.output_scroll_offset = self.task_output.len() - visible_height;
+        } else {
+            self.output_scroll_offset = 0;
+        }
     }
 }
 

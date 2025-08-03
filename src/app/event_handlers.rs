@@ -1,5 +1,5 @@
 use anyhow::Result;
-use ratatui::crossterm::event::{KeyCode, MouseButton};
+use ratatui::crossterm::event::{KeyCode, KeyEvent, KeyModifiers, MouseButton};
 use std::time::Instant;
 
 use super::App;
@@ -35,6 +35,27 @@ impl App {
                 // Keep only the last 100 lines
                 while self.task_output.len() > 100 {
                     self.task_output.pop_front();
+                    // Adjust scroll offset to maintain position when lines are removed
+                    if self.output_scroll_offset > 0 {
+                        self.output_scroll_offset = self.output_scroll_offset.saturating_sub(1);
+                    }
+                }
+
+                // Auto-scroll to bottom if we're at or near the bottom
+                if self.show_output_pane
+                    && self.task_running
+                    && self.current_output_visible_height > 0
+                {
+                    let visible_height = self.current_output_visible_height;
+                    let total_lines = self.task_output.len();
+
+                    // If we're within a few lines of the bottom, keep following
+                    if total_lines > visible_height {
+                        let max_scroll = total_lines - visible_height;
+                        if self.output_scroll_offset >= max_scroll.saturating_sub(3) {
+                            self.output_scroll_offset = max_scroll;
+                        }
+                    }
                 }
             }
             AppEvent::TaskCompleted => {
@@ -57,7 +78,12 @@ impl App {
         Ok(())
     }
 
-    pub async fn handle_key(&mut self, key: KeyCode) -> Result<()> {
+    pub async fn handle_key(&mut self, key_event: KeyEvent) -> Result<()> {
+        let KeyEvent {
+            code: key,
+            modifiers,
+            ..
+        } = key_event;
         match (&self.state, key) {
             (_, KeyCode::Char('q')) => self.should_quit = true,
             (_, KeyCode::Char('r')) => self.refresh_tasks().await?,
@@ -73,6 +99,24 @@ impl App {
             (AppState::Detail(_), KeyCode::Char('x')) => self.run_selected_task().await?,
 
             (AppState::Running(_), KeyCode::Esc | KeyCode::Char('b')) => self.back_to_list(),
+
+            // Output scrolling controls when output pane is visible (must come before regular navigation)
+            (AppState::SequenceBuilder, KeyCode::Up)
+                if modifiers.contains(KeyModifiers::SHIFT) && self.show_output_pane =>
+            {
+                self.scroll_output_up(3);
+            }
+            (AppState::SequenceBuilder, KeyCode::Down)
+                if modifiers.contains(KeyModifiers::SHIFT) && self.show_output_pane =>
+            {
+                self.scroll_output_down(3);
+            }
+            (AppState::SequenceBuilder, KeyCode::Char('u')) if self.show_output_pane => {
+                self.scroll_output_half_page_up();
+            }
+            (AppState::SequenceBuilder, KeyCode::Char('d')) if self.show_output_pane => {
+                self.scroll_output_half_page_down();
+            }
 
             // Sequence Builder controls
             (AppState::SequenceBuilder, KeyCode::Down | KeyCode::Char('j')) => {
@@ -120,6 +164,7 @@ impl App {
                     self.show_output_pane = false;
                     self.task_output.clear();
                     self.task_output_rx = None;
+                    self.output_scroll_offset = 0;
                 } else {
                     self.state = AppState::SequenceBuilder;
                 }

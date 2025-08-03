@@ -1,11 +1,14 @@
 use super::mise_task::MiseTask;
 use super::sequence::SequenceEvent;
-use ratatui::crossterm::event::{KeyCode, MouseButton};
+use ratatui::crossterm::event::{KeyEvent, MouseButton};
+
+#[cfg(test)]
+use ratatui::crossterm::event::KeyCode;
 
 #[derive(Debug, Clone)]
 pub enum AppEvent {
     Quit,
-    KeyPress(KeyCode),
+    KeyPress(KeyEvent),
     MouseClick {
         button: MouseButton,
         row: u16,
@@ -36,12 +39,17 @@ pub enum ScrollDirection {
 
 #[cfg(test)]
 mod tests {
+
     use super::*;
 
     #[test]
     fn test_app_event_simple_variants() {
         let quit = AppEvent::Quit;
-        let key_press = AppEvent::KeyPress(KeyCode::Enter);
+        let key_event = KeyEvent::new(
+            KeyCode::Enter,
+            ratatui::crossterm::event::KeyModifiers::NONE,
+        );
+        let key_press = AppEvent::KeyPress(key_event);
         let task_completed = AppEvent::TaskCompleted;
         let tick = AppEvent::Tick;
 
@@ -51,7 +59,7 @@ mod tests {
         }
 
         match key_press {
-            AppEvent::KeyPress(KeyCode::Enter) => assert!(true),
+            AppEvent::KeyPress(key) => assert_eq!(key.code, KeyCode::Enter),
             _ => panic!("Expected KeyPress variant"),
         }
 

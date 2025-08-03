@@ -161,7 +161,7 @@ fn draw_matrix_interface(app: &mut App, f: &mut Frame, area: Rect) {
     render_sequence_controls_in_title(app, f, area);
 }
 
-fn draw_task_output(app: &App, f: &mut Frame, area: Rect) {
+fn draw_task_output(app: &mut App, f: &mut Frame, area: Rect) {
     let mut output_text = Vec::new();
 
     // Show current step information if sequence is running
@@ -188,8 +188,35 @@ fn draw_task_output(app: &App, f: &mut Frame, area: Rect) {
         }
     }
 
-    // Add task output with ANSI color support
-    for line in app.task_output.iter() {
+    // Calculate available height for actual task output
+    // Account for borders (2) and any header lines we've added
+    let header_lines = output_text.len() as u16;
+    let available_height = area.height.saturating_sub(2).saturating_sub(header_lines) as usize;
+
+    // Store this for use in event handlers
+    app.current_output_visible_height = available_height;
+
+    let total_output_lines = app.task_output.len();
+
+    // Ensure scroll offset is within bounds
+    let max_scroll = if total_output_lines > available_height && available_height > 0 {
+        total_output_lines - available_height
+    } else {
+        0
+    };
+    app.output_scroll_offset = app.output_scroll_offset.min(max_scroll);
+
+    // Apply scroll offset to the task output
+    let start_index = app.output_scroll_offset;
+    let end_index = (start_index + available_height).min(total_output_lines);
+
+    // Add visible lines with ANSI color support
+    for line in app
+        .task_output
+        .iter()
+        .skip(start_index)
+        .take(end_index.saturating_sub(start_index))
+    {
         // Parse ANSI escape sequences and convert to ratatui Text
         match ansi_to_tui::IntoText::into_text(line) {
             Ok(parsed_text) => {
@@ -205,12 +232,16 @@ fn draw_task_output(app: &App, f: &mut Frame, area: Rect) {
         }
     }
 
+    // Create title with scroll indicators
+    let mut title = TASK_OUTPUT_TITLE.to_string();
+    if available_height > 0 && total_output_lines > available_height {
+        let visible_start = start_index + 1;
+        let visible_end = end_index;
+        title = format!("{TASK_OUTPUT_TITLE} ({visible_start}-{visible_end}/{total_output_lines})");
+    }
+
     let output = Paragraph::new(output_text)
-        .block(
-            Block::default()
-                .title(TASK_OUTPUT_TITLE)
-                .borders(Borders::ALL),
-        )
+        .block(Block::default().title(title).borders(Borders::ALL))
         .wrap(ratatui::widgets::Wrap { trim: true });
 
     f.render_widget(output, area);

@@ -14,7 +14,7 @@ pub fn spawn_input_handler(event_tx: mpsc::UnboundedSender<AppEvent>) {
                 match event::read() {
                     Ok(Event::Key(key)) => {
                         if key.kind == KeyEventKind::Press
-                            && event_tx.send(AppEvent::KeyPress(key.code)).is_err()
+                            && event_tx.send(AppEvent::KeyPress(key)).is_err()
                         {
                             break;
                         }
