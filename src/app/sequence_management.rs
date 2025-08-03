@@ -11,6 +11,7 @@ impl App {
                 let current_enabled = self
                     .sequence_state
                     .is_task_enabled_for_step(&task_name, step);
+                // Toggle: if currently enabled, disable; if not enabled, enable
                 self.sequence_state
                     .set_task_step(&task_name, step, !current_enabled);
             }

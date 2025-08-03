@@ -4,6 +4,7 @@ use crate::app::App;
 use crate::models::AppState;
 
 pub mod button_layout;
+pub mod constants;
 pub mod sequence_builder;
 pub mod task_detail;
 pub mod task_running;

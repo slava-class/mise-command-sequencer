@@ -2,12 +2,13 @@ use ratatui::{
     layout::{Constraint, Direction, Layout, Rect},
     style::{Color, Modifier, Style},
     text::{Line, Span},
-    widgets::{Block, Borders, Cell, Clear, Paragraph, Row, Table},
+    widgets::{Block, Borders, Cell, Paragraph, Row, Table},
     Frame,
 };
 
 use crate::app::App;
-use crate::ui::button_layout::{ActionButton, ButtonType};
+use crate::ui::button_layout::{ActionButton, ButtonType, SequenceButton};
+use crate::ui::constants::*;
 
 pub struct TableLayout {
     pub table_area: Rect,
@@ -140,12 +141,12 @@ fn draw_matrix_interface(app: &mut App, f: &mut Frame, area: Rect) {
     constraints.push(Constraint::Min(20)); // Actions column
 
     // Create table title with scroll indicators
-    let mut title = "Available Tasks".to_string();
+    let mut title = APP_TITLE.to_string();
     if app.tasks.len() > visible_height {
         let total_tasks = app.tasks.len();
         let start_task = app.scroll_offset + 1;
         let end_task = (app.scroll_offset + visible_height).min(total_tasks);
-        title = format!("Available Tasks ({start_task}-{end_task}/{total_tasks})");
+        title = format!("{APP_TITLE} ({start_task}-{end_task}/{total_tasks})");
     }
 
     let table = Table::new(rows, constraints)
@@ -154,20 +155,10 @@ fn draw_matrix_interface(app: &mut App, f: &mut Frame, area: Rect) {
         .row_highlight_style(Style::default().add_modifier(Modifier::REVERSED))
         .highlight_symbol("");
 
-    // Add sequence controls to the right side of the title
-    let title_area = Rect {
-        x: area.x + area.width - 30,
-        y: area.y,
-        width: 30,
-        height: 1,
-    };
-
-    let sequence_controls =
-        Paragraph::new("[Run sequence] [Clear]").style(Style::default().fg(Color::Blue));
-
     f.render_widget(table, area);
-    f.render_widget(Clear, title_area);
-    f.render_widget(sequence_controls, title_area);
+
+    // Add sequence controls embedded in the title bar
+    render_sequence_controls_in_title(app, f, area);
 }
 
 fn draw_task_output(app: &App, f: &mut Frame, area: Rect) {
@@ -203,7 +194,11 @@ fn draw_task_output(app: &App, f: &mut Frame, area: Rect) {
     }
 
     let output = Paragraph::new(output_text)
-        .block(Block::default().title("Task Output").borders(Borders::ALL))
+        .block(
+            Block::default()
+                .title(TASK_OUTPUT_TITLE)
+                .borders(Borders::ALL),
+        )
         .wrap(ratatui::widgets::Wrap { trim: true });
 
     f.render_widget(output, area);
@@ -215,7 +210,7 @@ fn draw_controls(f: &mut Frame, area: Rect) {
     )
     .block(
         Block::default()
-            .title("Controls")
+            .title(CONTROLS_TITLE)
             .borders(Borders::ALL)
     )
     .style(Style::default().fg(Color::Gray));
@@ -243,34 +238,122 @@ fn create_action_buttons_cell(app: &App, task_index: usize) -> Cell {
         None
     };
 
+    // Check if this task is selected
+    let is_selected = app.selected_task == task_index;
+
     // Create spans for each button with appropriate styling
     let mut spans = Vec::new();
 
     // Run button
     let run_style = if matches!(hover_button, Some(ActionButton::Run)) {
         Style::default().bg(Color::Green).fg(Color::Black)
+    } else if is_selected {
+        Style::default()
+            .fg(Color::Green)
+            .add_modifier(Modifier::BOLD)
     } else {
         Style::default().fg(Color::Cyan)
     };
-    spans.push(Span::styled("[run]", run_style));
+    spans.push(Span::styled(RUN_BUTTON_TEXT, run_style));
 
     // Cat button
-    spans.push(Span::raw(" "));
+    spans.push(Span::raw(BUTTON_SPACING));
     let cat_style = if matches!(hover_button, Some(ActionButton::Cat)) {
         Style::default().bg(Color::Blue).fg(Color::White)
+    } else if is_selected {
+        Style::default()
+            .fg(Color::Blue)
+            .add_modifier(Modifier::BOLD)
     } else {
         Style::default().fg(Color::Cyan)
     };
-    spans.push(Span::styled("[cat]", cat_style));
+    spans.push(Span::styled(CAT_BUTTON_TEXT, cat_style));
 
     // Edit button
-    spans.push(Span::raw(" "));
+    spans.push(Span::raw(BUTTON_SPACING));
     let edit_style = if matches!(hover_button, Some(ActionButton::Edit)) {
         Style::default().bg(Color::Magenta).fg(Color::White)
+    } else if is_selected {
+        Style::default()
+            .fg(Color::Magenta)
+            .add_modifier(Modifier::BOLD)
     } else {
         Style::default().fg(Color::Cyan)
     };
-    spans.push(Span::styled("[edit]", edit_style));
+    spans.push(Span::styled(EDIT_BUTTON_TEXT, edit_style));
 
     Cell::from(Line::from(spans))
+}
+
+fn create_sequence_controls_paragraph(app: &App) -> Paragraph {
+    // Check if any sequence button is being hovered
+    let hover_button = if let Some(hover_state) = &app.button_hover_state {
+        match hover_state.button_type {
+            ButtonType::Sequence(button) => Some(button),
+            _ => None,
+        }
+    } else {
+        None
+    };
+
+    // Create spans for sequence buttons with hover effects
+    let mut spans = Vec::new();
+
+    // Run sequence button
+    let run_sequence_style = if matches!(hover_button, Some(SequenceButton::RunSequence)) {
+        Style::default().bg(Color::Green).fg(Color::Black)
+    } else {
+        Style::default().fg(Color::Blue)
+    };
+    spans.push(Span::styled(RUN_SEQUENCE_BUTTON_TEXT, run_sequence_style));
+
+    // Space between buttons
+    spans.push(Span::raw(BUTTON_SPACING));
+
+    // Clear button
+    let clear_style = if matches!(hover_button, Some(SequenceButton::Clear)) {
+        Style::default().bg(Color::Red).fg(Color::White)
+    } else {
+        Style::default().fg(Color::Blue)
+    };
+    spans.push(Span::styled(CLEAR_BUTTON_TEXT, clear_style));
+
+    Paragraph::new(Line::from(spans))
+}
+
+fn render_sequence_controls_in_title(app: &App, f: &mut Frame, table_area: Rect) {
+    let title_text = if app.tasks.len() > app.current_visible_height {
+        let total_tasks = app.tasks.len();
+        let start_task = app.scroll_offset + 1;
+        let end_task = (app.scroll_offset + app.current_visible_height).min(total_tasks);
+        format!("{APP_TITLE} ({start_task}-{end_task}/{total_tasks})")
+    } else {
+        APP_TITLE.to_string()
+    };
+
+    // Account for border and padding: left border (1) + space (1) + title + space (1)
+    let title_offset = 3 + title_text.len();
+    let controls_text = format!("{RUN_SEQUENCE_BUTTON_TEXT} {CLEAR_BUTTON_TEXT}");
+    let controls_width = controls_text.len();
+
+    // Position controls to the right, accounting for right border (1)
+    let available_width = table_area.width as usize;
+    let controls_start = if title_offset + controls_width + 2 <= available_width {
+        available_width - controls_width - 2 // Leave space for right border
+    } else {
+        title_offset + 2 // Place after title if there's not enough space
+    };
+
+    let controls_area = Rect {
+        x: table_area.x + controls_start as u16,
+        y: table_area.y,
+        width: controls_width as u16,
+        height: 1,
+    };
+
+    // Only render if the area is valid and visible
+    if controls_area.x + controls_area.width <= table_area.x + table_area.width {
+        let sequence_controls = create_sequence_controls_paragraph(app);
+        f.render_widget(sequence_controls, controls_area);
+    }
 }

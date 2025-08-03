@@ -1,5 +1,7 @@
 use ratatui::layout::Rect;
 
+use super::constants::*;
+
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub enum ActionButton {
     Run,
@@ -30,25 +32,19 @@ pub struct ActionButtonLayout {
 
 impl ActionButtonLayout {
     pub fn new(_actions_rect: &Rect) -> Self {
-        // Actions text: "[run] [cat] [edit]"
         // Calculate positions based on actual string lengths
         // Account for potential cell padding by adding an offset
         let cell_padding = 2; // Table cells typically have 1 character padding
-        
-        let run_text = "[run]";
-        let cat_text = "[cat]";
-        let edit_text = "[edit]";
-        let space = " ";
-        
+
         let run_start = cell_padding;
-        let run_end = run_start + run_text.len() - 1;
-        
-        let cat_start = run_end + 1 + space.len();
-        let cat_end = cat_start + cat_text.len() - 1;
-        
-        let edit_start = cat_end + 1 + space.len();
-        let edit_end = edit_start + edit_text.len() - 1;
-        
+        let run_end = run_start + RUN_BUTTON_TEXT.len() - 1;
+
+        let cat_start = run_end + 1 + BUTTON_SPACING.len();
+        let cat_end = cat_start + CAT_BUTTON_TEXT.len() - 1;
+
+        let edit_start = cat_end + 1 + BUTTON_SPACING.len();
+        let edit_end = edit_start + EDIT_BUTTON_TEXT.len() - 1;
+
         Self {
             run_range: (run_start as u16, run_end as u16),
             cat_range: (cat_start as u16, cat_end as u16),
@@ -76,10 +72,15 @@ pub struct SequenceButtonLayout {
 
 impl SequenceButtonLayout {
     pub fn new(_controls_start_col: u16) -> Self {
-        // Text: "[Run sequence] [Clear]"
+        let run_sequence_start = 0;
+        let run_sequence_end = run_sequence_start + RUN_SEQUENCE_BUTTON_TEXT.len() - 1;
+
+        let clear_start = run_sequence_end + 1 + BUTTON_SPACING.len();
+        let clear_end = clear_start + CLEAR_BUTTON_TEXT.len() - 1;
+
         Self {
-            run_sequence_range: (0, 13), // "[Run sequence]" relative to controls start
-            clear_range: (15, 21),       // " [Clear]" relative to controls start
+            run_sequence_range: (run_sequence_start as u16, run_sequence_end as u16),
+            clear_range: (clear_start as u16, clear_end as u16),
         }
     }
 
@@ -130,10 +131,22 @@ mod tests {
         let rect = create_test_rect();
         let layout = ActionButtonLayout::new(&rect);
 
-        // With cell_padding = 2, ranges are shifted by 2
-        assert_eq!(layout.run_range, (2, 6));
-        assert_eq!(layout.cat_range, (8, 12));
-        assert_eq!(layout.edit_range, (14, 19));
+        // With cell_padding = 2, ranges are calculated based on actual text lengths
+        let expected_run_end = 2 + RUN_BUTTON_TEXT.len() - 1;
+        let expected_cat_start = expected_run_end + 1 + BUTTON_SPACING.len();
+        let expected_cat_end = expected_cat_start + CAT_BUTTON_TEXT.len() - 1;
+        let expected_edit_start = expected_cat_end + 1 + BUTTON_SPACING.len();
+        let expected_edit_end = expected_edit_start + EDIT_BUTTON_TEXT.len() - 1;
+
+        assert_eq!(layout.run_range, (2, expected_run_end as u16));
+        assert_eq!(
+            layout.cat_range,
+            (expected_cat_start as u16, expected_cat_end as u16)
+        );
+        assert_eq!(
+            layout.edit_range,
+            (expected_edit_start as u16, expected_edit_end as u16)
+        );
     }
 
     #[test]
@@ -185,8 +198,18 @@ mod tests {
     fn test_sequence_button_layout_creation() {
         let layout = SequenceButtonLayout::new(50);
 
-        assert_eq!(layout.run_sequence_range, (0, 13));
-        assert_eq!(layout.clear_range, (15, 21));
+        let expected_run_sequence_end = RUN_SEQUENCE_BUTTON_TEXT.len() - 1;
+        let expected_clear_start = expected_run_sequence_end + 1 + BUTTON_SPACING.len();
+        let expected_clear_end = expected_clear_start + CLEAR_BUTTON_TEXT.len() - 1;
+
+        assert_eq!(
+            layout.run_sequence_range,
+            (0, expected_run_sequence_end as u16)
+        );
+        assert_eq!(
+            layout.clear_range,
+            (expected_clear_start as u16, expected_clear_end as u16)
+        );
     }
 
     #[test]

@@ -5,7 +5,10 @@ use std::time::Instant;
 use super::App;
 use crate::models::app_event::ScrollDirection;
 use crate::models::{AppEvent, AppState, SequenceEvent};
-use crate::ui::button_layout::{ActionButton, ActionButtonLayout, ButtonHoverState, ButtonType};
+use crate::ui::button_layout::{
+    ActionButton, ActionButtonLayout, ButtonHoverState, ButtonType, SequenceButtonLayout,
+};
+use crate::ui::constants::*;
 
 const DEFAULT_SCROLL_AMT: usize = 10;
 
@@ -226,23 +229,27 @@ impl App {
         }
         // Check for sequence control buttons in the title area
         else if row == table_start_row {
-            // The sequence controls are rendered in the top-right of the title
-            // This is a rough approximation - could be improved with more precise layout tracking
-            let terminal_width = table_layout.table_area.width;
-            let controls_start = terminal_width.saturating_sub(30);
+            if let Some((controls_start_col, controls_width)) =
+                self.calculate_sequence_controls_position(table_layout)
+            {
+                if col >= controls_start_col && col < controls_start_col + controls_width as u16 {
+                    let relative_col = col - controls_start_col;
+                    let sequence_layout = SequenceButtonLayout::new(0);
 
-            if col >= controls_start {
-                let relative_col = col - controls_start;
-                if (0..=13).contains(&relative_col) {
-                    // "Run sequence" button
-                    let _ = self
-                        .event_tx
-                        .send(AppEvent::Sequence(SequenceEvent::RunSequence));
-                } else if (15..=21).contains(&relative_col) {
-                    // "Clear" button
-                    let _ = self
-                        .event_tx
-                        .send(AppEvent::Sequence(SequenceEvent::ClearSequence));
+                    if let Some(button) = sequence_layout.get_button_at_position(relative_col) {
+                        match button {
+                            crate::ui::button_layout::SequenceButton::RunSequence => {
+                                let _ = self
+                                    .event_tx
+                                    .send(AppEvent::Sequence(SequenceEvent::RunSequence));
+                            }
+                            crate::ui::button_layout::SequenceButton::Clear => {
+                                let _ = self
+                                    .event_tx
+                                    .send(AppEvent::Sequence(SequenceEvent::ClearSequence));
+                            }
+                        }
+                    }
                 }
             }
         }
@@ -263,18 +270,38 @@ impl App {
     }
 
     fn handle_sequence_builder_hover(&mut self, row: u16, col: u16) -> Result<()> {
-        // Get the stored table layout for accurate column detection
+        // Early return if no table layout
         let Some(table_layout) = &self.table_layout else {
-            self.button_hover_state = None;
+            if self.button_hover_state.is_some() {
+                self.button_hover_state = None;
+            }
             return Ok(());
         };
 
-        // Reset hover state by default
-        self.button_hover_state = None;
-
-        // Calculate which task row is being hovered (accounting for header and borders)
         let table_start_row = table_layout.table_area.y;
-        if row >= table_start_row + 2 {
+        let mut new_hover_state = None;
+
+        // Check for sequence button hover in the title area
+        if row == table_start_row {
+            if let Some((controls_start_col, controls_width)) =
+                self.calculate_sequence_controls_position(table_layout)
+            {
+                if col >= controls_start_col && col < controls_start_col + controls_width as u16 {
+                    let relative_col = col - controls_start_col;
+                    let sequence_layout = SequenceButtonLayout::new(0);
+
+                    if let Some(button) = sequence_layout.get_button_at_position(relative_col) {
+                        new_hover_state = Some(ButtonHoverState::new(
+                            ButtonType::Sequence(button),
+                            row,
+                            col,
+                        ));
+                    }
+                }
+            }
+        }
+        // Check for action button hover in task rows
+        else if row >= table_start_row + 2 {
             let visible_task_index = (row - table_start_row - 2) as usize;
             let actual_task_index = self.scroll_offset + visible_task_index;
 
@@ -286,7 +313,7 @@ impl App {
                         let relative_col = col - actions_rect.x;
 
                         if let Some(button) = action_layout.get_button_at_position(relative_col) {
-                            self.button_hover_state = Some(ButtonHoverState::new(
+                            new_hover_state = Some(ButtonHoverState::new(
                                 ButtonType::Action {
                                     button,
                                     task_index: actual_task_index,
@@ -299,6 +326,52 @@ impl App {
                 }
             }
         }
+
+        // Only update hover state if it actually changed
+        if self.button_hover_state != new_hover_state {
+            self.button_hover_state = new_hover_state;
+        }
+
         Ok(())
+    }
+
+    fn calculate_sequence_controls_position(
+        &self,
+        table_area: &crate::ui::sequence_builder::TableLayout,
+    ) -> Option<(u16, usize)> {
+        // Pre-calculate constants to avoid repeated allocations
+        static CONTROLS_TEXT_LEN: std::sync::OnceLock<usize> = std::sync::OnceLock::new();
+        let controls_width = *CONTROLS_TEXT_LEN
+            .get_or_init(|| format!("{RUN_SEQUENCE_BUTTON_TEXT} {CLEAR_BUTTON_TEXT}").len());
+
+        let title_text_len = if self.tasks.len() > self.current_visible_height {
+            let total_tasks = self.tasks.len();
+            let start_task = self.scroll_offset + 1;
+            let end_task = (self.scroll_offset + self.current_visible_height).min(total_tasks);
+            // Calculate length without allocating the full string
+            APP_TITLE.len() + format!(" ({start_task}-{end_task}/{total_tasks})").len()
+        } else {
+            APP_TITLE.len()
+        };
+
+        let title_offset = 3 + title_text_len; // Border + space + title + space
+        let available_width = table_area.table_area.width as usize;
+
+        let controls_start = if title_offset + controls_width + 2 <= available_width {
+            available_width - controls_width - 2
+        } else {
+            title_offset + 2
+        };
+
+        let controls_start_col = table_area.table_area.x + controls_start as u16;
+
+        // Return start column and width if valid
+        if controls_start_col + controls_width as u16
+            <= table_area.table_area.x + table_area.table_area.width
+        {
+            Some((controls_start_col, controls_width))
+        } else {
+            None
+        }
     }
 }

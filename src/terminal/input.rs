@@ -7,8 +7,10 @@ use crate::models::AppEvent;
 
 pub fn spawn_input_handler(event_tx: mpsc::UnboundedSender<AppEvent>) {
     tokio::spawn(async move {
+        let mut last_mouse_pos = (0u16, 0u16);
+
         loop {
-            if event::poll(Duration::from_millis(100)).unwrap_or(false) {
+            if event::poll(Duration::from_millis(16)).unwrap_or(false) {
                 match event::read() {
                     Ok(Event::Key(key)) => {
                         if key.kind == KeyEventKind::Press
@@ -55,14 +57,20 @@ pub fn spawn_input_handler(event_tx: mpsc::UnboundedSender<AppEvent>) {
                             }
                         }
                         MouseEventKind::Moved => {
-                            if event_tx
-                                .send(AppEvent::MouseMove {
-                                    row: mouse.row,
-                                    col: mouse.column,
-                                })
-                                .is_err()
-                            {
-                                break;
+                            let current_pos = (mouse.row, mouse.column);
+
+                            // Only send if position actually changed
+                            if current_pos != last_mouse_pos {
+                                if event_tx
+                                    .send(AppEvent::MouseMove {
+                                        row: mouse.row,
+                                        col: mouse.column,
+                                    })
+                                    .is_err()
+                                {
+                                    break;
+                                }
+                                last_mouse_pos = current_pos;
                             }
                         }
                         _ => {}
@@ -70,7 +78,7 @@ pub fn spawn_input_handler(event_tx: mpsc::UnboundedSender<AppEvent>) {
                     _ => {}
                 }
             }
-            sleep(Duration::from_millis(10)).await;
+            sleep(Duration::from_millis(8)).await; // ~120 FPS for smoother input
         }
     });
 }
