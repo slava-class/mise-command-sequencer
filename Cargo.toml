@@ -1,0 +1,6 @@
+[package]
+name = "mise_command_sequencer"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
