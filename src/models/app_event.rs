@@ -14,7 +14,9 @@ pub enum AppEvent {
     },
     MouseScroll {
         direction: ScrollDirection,
+        #[allow(dead_code)]
         row: u16,
+        #[allow(dead_code)]
         col: u16,
     },
     TasksRefreshed(Vec<MiseTask>),
@@ -132,7 +134,11 @@ mod tests {
         };
 
         match scroll_up {
-            AppEvent::MouseScroll { direction, row, col } => {
+            AppEvent::MouseScroll {
+                direction,
+                row,
+                col,
+            } => {
                 assert!(matches!(direction, ScrollDirection::Up));
                 assert_eq!(row, 5);
                 assert_eq!(col, 10);
@@ -141,7 +147,11 @@ mod tests {
         }
 
         match scroll_down {
-            AppEvent::MouseScroll { direction, row, col } => {
+            AppEvent::MouseScroll {
+                direction,
+                row,
+                col,
+            } => {
                 assert!(matches!(direction, ScrollDirection::Down));
                 assert_eq!(row, 15);
                 assert_eq!(col, 25);

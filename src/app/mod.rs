@@ -102,7 +102,7 @@ impl App {
         if self.tasks.is_empty() {
             return;
         }
-        
+
         let max_scroll = self.tasks.len().saturating_sub(visible_height);
         self.scroll_offset = (self.scroll_offset + lines).min(max_scroll);
     }
@@ -114,8 +114,9 @@ impl App {
 
         let end = (self.scroll_offset + visible_height).min(self.tasks.len());
         let visible_tasks = self.tasks[self.scroll_offset..end].iter().collect();
-        let selected_in_visible = if self.selected_task >= self.scroll_offset 
-            && self.selected_task < self.scroll_offset + visible_height {
+        let selected_in_visible = if self.selected_task >= self.scroll_offset
+            && self.selected_task < self.scroll_offset + visible_height
+        {
             Some(self.selected_task - self.scroll_offset)
         } else {
             None

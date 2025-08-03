@@ -2,8 +2,8 @@ use ratatui::crossterm::event::{self, Event, KeyEventKind, MouseEventKind};
 use std::time::Duration;
 use tokio::{sync::mpsc, time::sleep};
 
-use crate::models::AppEvent;
 use crate::models::app_event::ScrollDirection;
+use crate::models::AppEvent;
 
 pub fn spawn_input_handler(event_tx: mpsc::UnboundedSender<AppEvent>) {
     tokio::spawn(async move {
@@ -17,47 +17,45 @@ pub fn spawn_input_handler(event_tx: mpsc::UnboundedSender<AppEvent>) {
                             break;
                         }
                     }
-                    Ok(Event::Mouse(mouse)) => {
-                        match mouse.kind {
-                            MouseEventKind::Down(button) => {
-                                if event_tx
-                                    .send(AppEvent::MouseClick {
-                                        button,
-                                        row: mouse.row,
-                                        col: mouse.column,
-                                    })
-                                    .is_err()
-                                {
-                                    break;
-                                }
+                    Ok(Event::Mouse(mouse)) => match mouse.kind {
+                        MouseEventKind::Down(button) => {
+                            if event_tx
+                                .send(AppEvent::MouseClick {
+                                    button,
+                                    row: mouse.row,
+                                    col: mouse.column,
+                                })
+                                .is_err()
+                            {
+                                break;
                             }
-                            MouseEventKind::ScrollUp => {
-                                if event_tx
-                                    .send(AppEvent::MouseScroll {
-                                        direction: ScrollDirection::Up,
-                                        row: mouse.row,
-                                        col: mouse.column,
-                                    })
-                                    .is_err()
-                                {
-                                    break;
-                                }
-                            }
-                            MouseEventKind::ScrollDown => {
-                                if event_tx
-                                    .send(AppEvent::MouseScroll {
-                                        direction: ScrollDirection::Down,
-                                        row: mouse.row,
-                                        col: mouse.column,
-                                    })
-                                    .is_err()
-                                {
-                                    break;
-                                }
-                            }
-                            _ => {}
                         }
-                    }
+                        MouseEventKind::ScrollUp => {
+                            if event_tx
+                                .send(AppEvent::MouseScroll {
+                                    direction: ScrollDirection::Up,
+                                    row: mouse.row,
+                                    col: mouse.column,
+                                })
+                                .is_err()
+                            {
+                                break;
+                            }
+                        }
+                        MouseEventKind::ScrollDown => {
+                            if event_tx
+                                .send(AppEvent::MouseScroll {
+                                    direction: ScrollDirection::Down,
+                                    row: mouse.row,
+                                    col: mouse.column,
+                                })
+                                .is_err()
+                            {
+                                break;
+                            }
+                        }
+                        _ => {}
+                    },
                     _ => {}
                 }
             }

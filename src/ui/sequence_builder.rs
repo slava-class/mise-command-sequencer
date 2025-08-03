@@ -132,11 +132,7 @@ fn draw_matrix_interface(app: &mut App, f: &mut Frame, area: Rect) {
 
     let table = Table::new(rows, constraints)
         .header(header)
-        .block(
-            Block::default()
-                .title(title)
-                .borders(Borders::ALL),
-        )
+        .block(Block::default().title(title).borders(Borders::ALL))
         .row_highlight_style(Style::default().add_modifier(Modifier::REVERSED))
         .highlight_symbol("");
 

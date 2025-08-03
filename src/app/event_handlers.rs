@@ -3,8 +3,10 @@ use ratatui::crossterm::event::{KeyCode, MouseButton};
 use std::time::Instant;
 
 use super::App;
-use crate::models::{AppEvent, AppState, SequenceEvent};
 use crate::models::app_event::ScrollDirection;
+use crate::models::{AppEvent, AppState, SequenceEvent};
+
+const DEFAULT_SCROLL_AMT: usize = 10;
 
 impl App {
     pub async fn handle_event(&mut self, event: AppEvent) -> Result<()> {
@@ -14,9 +16,11 @@ impl App {
             AppEvent::MouseClick { button, row, col } => {
                 self.handle_mouse_click(button, row, col).await?
             }
-            AppEvent::MouseScroll { direction, row: _, col: _ } => {
-                self.handle_mouse_scroll(direction).await?
-            }
+            AppEvent::MouseScroll {
+                direction,
+                row: _,
+                col: _,
+            } => self.handle_mouse_scroll(direction).await?,
             AppEvent::TasksRefreshed(tasks) => {
                 self.tasks = tasks;
                 self.last_updated = Instant::now();
@@ -71,26 +75,27 @@ impl App {
                 let visible_height = if let Some(layout) = &self.table_layout {
                     (layout.table_area.height.saturating_sub(3)) as usize
                 } else {
-                    10 // Fallback if layout not yet calculated
+                    DEFAULT_SCROLL_AMT // Fallback if layout not yet calculated
                 };
                 self.scroll_down(visible_height, visible_height);
                 // Move selection to the first visible task after scrolling
                 if self.selected_task < self.scroll_offset {
                     self.selected_task = self.scroll_offset;
                 }
-            },
+            }
             (AppState::SequenceBuilder, KeyCode::PageUp) => {
                 let visible_height = if let Some(layout) = &self.table_layout {
                     (layout.table_area.height.saturating_sub(3)) as usize
                 } else {
-                    10 // Fallback if layout not yet calculated
+                    DEFAULT_SCROLL_AMT // Fallback if layout not yet calculated
                 };
                 self.scroll_up(visible_height);
                 // Adjust selection if it's now below the visible area
                 if self.selected_task >= self.scroll_offset + visible_height {
-                    self.selected_task = (self.scroll_offset + visible_height - 1).min(self.tasks.len().saturating_sub(1));
+                    self.selected_task = (self.scroll_offset + visible_height - 1)
+                        .min(self.tasks.len().saturating_sub(1));
                 }
-            },
+            }
             (AppState::SequenceBuilder, KeyCode::Char('1')) => self.toggle_current_task_step(0)?,
             (AppState::SequenceBuilder, KeyCode::Char('2')) => self.toggle_current_task_step(1)?,
             (AppState::SequenceBuilder, KeyCode::Char('3')) => self.toggle_current_task_step(2)?,
@@ -124,9 +129,9 @@ impl App {
                     // Calculate visible height: total area minus header and borders
                     (layout.table_area.height.saturating_sub(3)) as usize
                 } else {
-                    10 // Fallback if layout not yet calculated
+                    DEFAULT_SCROLL_AMT // Fallback if layout not yet calculated
                 };
-                
+
                 match direction {
                     ScrollDirection::Up => {
                         self.scroll_up(3); // Scroll 3 lines at a time
