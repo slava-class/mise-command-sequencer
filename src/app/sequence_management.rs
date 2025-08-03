@@ -18,6 +18,9 @@ impl App {
             SequenceEvent::RunSequence => {
                 self.start_sequence_execution()?;
             }
+            SequenceEvent::CopyAsTask => {
+                self.copy_sequence_as_task()?;
+            }
             SequenceEvent::ClearSequence => {
                 self.sequence_state.clear_all();
             }
@@ -120,6 +123,73 @@ impl App {
 
         self.running_task_handle = Some(handle);
 
+        Ok(())
+    }
+
+    fn copy_sequence_as_task(&mut self) -> Result<()> {
+        if let Some(command) = self.sequence_state.generate_mise_task_command() {
+            let task_definition = format!("sequence = \"{command}\"");
+
+            // Try to copy to clipboard using system command
+            let copy_result = if cfg!(target_os = "macos") {
+                std::process::Command::new("pbcopy")
+                    .stdin(std::process::Stdio::piped())
+                    .spawn()
+                    .and_then(|mut child| {
+                        use std::io::Write;
+                        if let Some(stdin) = child.stdin.as_mut() {
+                            stdin.write_all(task_definition.as_bytes())?;
+                        }
+                        child.wait()?;
+                        Ok(())
+                    })
+            } else if cfg!(target_os = "linux") {
+                std::process::Command::new("xclip")
+                    .args(["-selection", "clipboard"])
+                    .stdin(std::process::Stdio::piped())
+                    .spawn()
+                    .and_then(|mut child| {
+                        use std::io::Write;
+                        if let Some(stdin) = child.stdin.as_mut() {
+                            stdin.write_all(task_definition.as_bytes())?;
+                        }
+                        child.wait()?;
+                        Ok(())
+                    })
+            } else {
+                Err(std::io::Error::new(
+                    std::io::ErrorKind::Unsupported,
+                    "Clipboard not supported on this platform",
+                ))
+            };
+
+            // Show feedback to user
+            self.task_output.clear();
+            self.show_output_pane = true;
+            self.task_running = false;
+
+            match copy_result {
+                Ok(_) => {
+                    self.task_output
+                        .push_back("✓ Copied to clipboard:".to_string());
+                    self.task_output.push_back(task_definition);
+                }
+                Err(_) => {
+                    self.task_output.push_back(
+                        "⚠ Failed to copy to clipboard, but here's the task definition:"
+                            .to_string(),
+                    );
+                    self.task_output.push_back(task_definition);
+                }
+            }
+        } else {
+            // No tasks enabled
+            self.task_output.clear();
+            self.show_output_pane = true;
+            self.task_running = false;
+            self.task_output
+                .push_back("No tasks enabled in sequence. Enable some tasks first!".to_string());
+        }
         Ok(())
     }
 

@@ -95,12 +95,33 @@ impl SequenceState {
             false
         }
     }
+
+    pub fn generate_mise_task_command(&self) -> Option<String> {
+        let mut commands = Vec::new();
+
+        for step in 0..self.num_steps {
+            let tasks_for_step = self.get_tasks_for_step(step);
+            if !tasks_for_step.is_empty() {
+                // Should only be one task per step based on current logic
+                if let Some(task_name) = tasks_for_step.first() {
+                    commands.push(format!("mise run {task_name}"));
+                }
+            }
+        }
+
+        if commands.is_empty() {
+            None
+        } else {
+            Some(commands.join(" && "))
+        }
+    }
 }
 
 #[derive(Debug, Clone)]
 pub enum SequenceEvent {
     ToggleStep(String, usize),
     RunSequence,
+    CopyAsTask,
     ClearSequence,
     StepCompleted,
     SequenceCompleted,
@@ -271,5 +292,53 @@ mod tests {
         assert!(!has_more);
         assert_eq!(seq.current_step, None);
         assert!(!seq.is_running);
+    }
+
+    #[test]
+    fn test_generate_mise_task_command_with_tasks() {
+        let mut seq = SequenceState::new(3);
+
+        seq.set_task_step("build", 0, true);
+        seq.set_task_step("test", 1, true);
+        seq.set_task_step("deploy", 2, true);
+
+        let command = seq.generate_mise_task_command();
+        assert_eq!(
+            command,
+            Some("mise run build && mise run test && mise run deploy".to_string())
+        );
+    }
+
+    #[test]
+    fn test_generate_mise_task_command_with_gaps() {
+        let mut seq = SequenceState::new(3);
+
+        seq.set_task_step("build", 0, true);
+        // Skip step 1
+        seq.set_task_step("deploy", 2, true);
+
+        let command = seq.generate_mise_task_command();
+        assert_eq!(
+            command,
+            Some("mise run build && mise run deploy".to_string())
+        );
+    }
+
+    #[test]
+    fn test_generate_mise_task_command_empty() {
+        let seq = SequenceState::new(3);
+
+        let command = seq.generate_mise_task_command();
+        assert_eq!(command, None);
+    }
+
+    #[test]
+    fn test_generate_mise_task_command_single_task() {
+        let mut seq = SequenceState::new(3);
+
+        seq.set_task_step("build", 1, true);
+
+        let command = seq.generate_mise_task_command();
+        assert_eq!(command, Some("mise run build".to_string()));
     }
 }

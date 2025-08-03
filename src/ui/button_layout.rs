@@ -12,6 +12,7 @@ pub enum ActionButton {
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub enum SequenceButton {
     RunSequence,
+    CopyAsTask,
     Clear,
 }
 
@@ -67,6 +68,7 @@ impl ActionButtonLayout {
 
 pub struct SequenceButtonLayout {
     pub run_sequence_range: (u16, u16),
+    pub copy_as_task_range: (u16, u16),
     pub clear_range: (u16, u16),
 }
 
@@ -75,11 +77,15 @@ impl SequenceButtonLayout {
         let run_sequence_start = 0;
         let run_sequence_end = run_sequence_start + RUN_SEQUENCE_BUTTON_TEXT.len() - 1;
 
-        let clear_start = run_sequence_end + 1 + BUTTON_SPACING.len();
+        let copy_as_task_start = run_sequence_end + 1 + BUTTON_SPACING.len();
+        let copy_as_task_end = copy_as_task_start + COPY_AS_TASK_BUTTON_TEXT.len() - 1;
+
+        let clear_start = copy_as_task_end + 1 + BUTTON_SPACING.len();
         let clear_end = clear_start + CLEAR_BUTTON_TEXT.len() - 1;
 
         Self {
             run_sequence_range: (run_sequence_start as u16, run_sequence_end as u16),
+            copy_as_task_range: (copy_as_task_start as u16, copy_as_task_end as u16),
             clear_range: (clear_start as u16, clear_end as u16),
         }
     }
@@ -87,6 +93,8 @@ impl SequenceButtonLayout {
     pub fn get_button_at_position(&self, relative_col: u16) -> Option<SequenceButton> {
         if (self.run_sequence_range.0..=self.run_sequence_range.1).contains(&relative_col) {
             Some(SequenceButton::RunSequence)
+        } else if (self.copy_as_task_range.0..=self.copy_as_task_range.1).contains(&relative_col) {
+            Some(SequenceButton::CopyAsTask)
         } else if (self.clear_range.0..=self.clear_range.1).contains(&relative_col) {
             Some(SequenceButton::Clear)
         } else {
@@ -199,12 +207,22 @@ mod tests {
         let layout = SequenceButtonLayout::new(50);
 
         let expected_run_sequence_end = RUN_SEQUENCE_BUTTON_TEXT.len() - 1;
-        let expected_clear_start = expected_run_sequence_end + 1 + BUTTON_SPACING.len();
+        let expected_copy_as_task_start = expected_run_sequence_end + 1 + BUTTON_SPACING.len();
+        let expected_copy_as_task_end =
+            expected_copy_as_task_start + COPY_AS_TASK_BUTTON_TEXT.len() - 1;
+        let expected_clear_start = expected_copy_as_task_end + 1 + BUTTON_SPACING.len();
         let expected_clear_end = expected_clear_start + CLEAR_BUTTON_TEXT.len() - 1;
 
         assert_eq!(
             layout.run_sequence_range,
             (0, expected_run_sequence_end as u16)
+        );
+        assert_eq!(
+            layout.copy_as_task_range,
+            (
+                expected_copy_as_task_start as u16,
+                expected_copy_as_task_end as u16
+            )
         );
         assert_eq!(
             layout.clear_range,
@@ -230,23 +248,38 @@ mod tests {
             Some(SequenceButton::RunSequence)
         );
 
-        // Test clear button range (15-21)
+        // Test copy as task button range (15-28)
         assert_eq!(
             layout.get_button_at_position(15),
-            Some(SequenceButton::Clear)
-        );
-        assert_eq!(
-            layout.get_button_at_position(18),
-            Some(SequenceButton::Clear)
+            Some(SequenceButton::CopyAsTask)
         );
         assert_eq!(
             layout.get_button_at_position(21),
+            Some(SequenceButton::CopyAsTask)
+        );
+        assert_eq!(
+            layout.get_button_at_position(28),
+            Some(SequenceButton::CopyAsTask)
+        );
+
+        // Test clear button range (30-36)
+        assert_eq!(
+            layout.get_button_at_position(30),
+            Some(SequenceButton::Clear)
+        );
+        assert_eq!(
+            layout.get_button_at_position(33),
+            Some(SequenceButton::Clear)
+        );
+        assert_eq!(
+            layout.get_button_at_position(36),
             Some(SequenceButton::Clear)
         );
 
         // Test positions outside ranges
-        assert_eq!(layout.get_button_at_position(14), None); // Between buttons
-        assert_eq!(layout.get_button_at_position(22), None); // After clear
+        assert_eq!(layout.get_button_at_position(14), None); // Between run sequence and copy
+        assert_eq!(layout.get_button_at_position(29), None); // Between copy and clear
+        assert_eq!(layout.get_button_at_position(37), None); // After clear
     }
 
     #[test]

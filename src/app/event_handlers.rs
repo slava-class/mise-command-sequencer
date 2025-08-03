@@ -101,10 +101,15 @@ impl App {
                     .event_tx
                     .send(AppEvent::Sequence(SequenceEvent::RunSequence));
             }
-            (AppState::SequenceBuilder, KeyCode::Char('c')) => {
+            (AppState::SequenceBuilder, KeyCode::Char('c') | KeyCode::Char('C')) => {
                 let _ = self
                     .event_tx
                     .send(AppEvent::Sequence(SequenceEvent::ClearSequence));
+            }
+            (AppState::SequenceBuilder, KeyCode::Char('y')) => {
+                let _ = self
+                    .event_tx
+                    .send(AppEvent::Sequence(SequenceEvent::CopyAsTask));
             }
             (AppState::SequenceBuilder, KeyCode::Char('x')) => self.run_current_task().await?,
             (AppState::SequenceBuilder, KeyCode::Char('e')) => self.edit_current_task().await?,
@@ -243,6 +248,11 @@ impl App {
                                     .event_tx
                                     .send(AppEvent::Sequence(SequenceEvent::RunSequence));
                             }
+                            crate::ui::button_layout::SequenceButton::CopyAsTask => {
+                                let _ = self
+                                    .event_tx
+                                    .send(AppEvent::Sequence(SequenceEvent::CopyAsTask));
+                            }
                             crate::ui::button_layout::SequenceButton::Clear => {
                                 let _ = self
                                     .event_tx
@@ -341,8 +351,10 @@ impl App {
     ) -> Option<(u16, usize)> {
         // Pre-calculate constants to avoid repeated allocations
         static CONTROLS_TEXT_LEN: std::sync::OnceLock<usize> = std::sync::OnceLock::new();
-        let controls_width = *CONTROLS_TEXT_LEN
-            .get_or_init(|| format!("{RUN_SEQUENCE_BUTTON_TEXT} {CLEAR_BUTTON_TEXT}").len());
+        let controls_width = *CONTROLS_TEXT_LEN.get_or_init(|| {
+            format!("{RUN_SEQUENCE_BUTTON_TEXT} {COPY_AS_TASK_BUTTON_TEXT} {CLEAR_BUTTON_TEXT}")
+                .len()
+        });
 
         let title_text_len = if self.tasks.len() > self.current_visible_height {
             let total_tasks = self.tasks.len();

@@ -39,7 +39,7 @@ pub fn draw_sequence_builder(app: &mut App, f: &mut Frame) {
             .constraints([
                 Constraint::Min(8),    // Matrix interface
                 Constraint::Min(5),    // Task output
-                Constraint::Length(3), // Controls
+                Constraint::Length(4), // Controls (2 lines + borders)
             ])
             .split(f.area())
     } else {
@@ -47,7 +47,7 @@ pub fn draw_sequence_builder(app: &mut App, f: &mut Frame) {
             .direction(Direction::Vertical)
             .constraints([
                 Constraint::Min(8),    // Matrix interface
-                Constraint::Length(3), // Controls
+                Constraint::Length(4), // Controls (2 lines + borders)
             ])
             .split(f.area())
     };
@@ -205,9 +205,10 @@ fn draw_task_output(app: &App, f: &mut Frame, area: Rect) {
 }
 
 fn draw_controls(f: &mut Frame, area: Rect) {
-    let controls = Paragraph::new(
-        "↑/↓: Navigate | PgUp/PgDn/Mouse wheel: Scroll | 1/2/3: Toggle step | Enter: Run sequence | x: Run task | e: Edit | Tab: Info | c: Clear | q: Quit"
-    )
+    let controls = Paragraph::new(vec![
+        Line::from("↑/↓: Navigate | PgUp/PgDn/Mouse wheel: Scroll | 1/2/3: Toggle step | Enter: Run sequence"),
+        Line::from("y: Copy as task | x: Run task | e: Edit | Tab: Info | c: Clear | q: Quit"),
+    ])
     .block(
         Block::default()
             .title(CONTROLS_TITLE)
@@ -310,6 +311,17 @@ fn create_sequence_controls_paragraph(app: &App) -> Paragraph {
     // Space between buttons
     spans.push(Span::raw(BUTTON_SPACING));
 
+    // Copy as task button
+    let copy_as_task_style = if matches!(hover_button, Some(SequenceButton::CopyAsTask)) {
+        Style::default().bg(Color::Cyan).fg(Color::Black)
+    } else {
+        Style::default().fg(Color::Blue)
+    };
+    spans.push(Span::styled(COPY_AS_TASK_BUTTON_TEXT, copy_as_task_style));
+
+    // Space between buttons
+    spans.push(Span::raw(BUTTON_SPACING));
+
     // Clear button
     let clear_style = if matches!(hover_button, Some(SequenceButton::Clear)) {
         Style::default().bg(Color::Red).fg(Color::White)
@@ -333,7 +345,8 @@ fn render_sequence_controls_in_title(app: &App, f: &mut Frame, table_area: Rect)
 
     // Account for border and padding: left border (1) + space (1) + title + space (1)
     let title_offset = 3 + title_text.len();
-    let controls_text = format!("{RUN_SEQUENCE_BUTTON_TEXT} {CLEAR_BUTTON_TEXT}");
+    let controls_text =
+        format!("{RUN_SEQUENCE_BUTTON_TEXT} {COPY_AS_TASK_BUTTON_TEXT} {CLEAR_BUTTON_TEXT}");
     let controls_width = controls_text.len();
 
     // Position controls to the right, accounting for right border (1)

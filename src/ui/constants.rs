@@ -7,6 +7,7 @@ pub const EDIT_BUTTON_TEXT: &str = "[edit]";
 
 // Sequence button texts
 pub const RUN_SEQUENCE_BUTTON_TEXT: &str = "[Run sequence]";
+pub const COPY_AS_TASK_BUTTON_TEXT: &str = "[Copy as task]";
 pub const CLEAR_BUTTON_TEXT: &str = "[Clear]";
 
 // Button spacing

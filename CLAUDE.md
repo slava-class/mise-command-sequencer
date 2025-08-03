@@ -27,6 +27,10 @@ The core concept is a matrix interface where tasks are rows and execution steps 
 - ✅ VSCode integration for task editing
 - ✅ Task content display and information viewing
 - ✅ Comprehensive keyboard controls
+- ✅ Mouse interaction support (clicking buttons, scrolling)
+- ✅ Button hover states and visual feedback
+- ✅ Auto-hiding task list optimization
+- ✅ Scrolling support for large task lists
 
 The application now features a complete matrix-style interface:
 
@@ -48,6 +52,7 @@ The application now features a complete matrix-style interface:
 
 ## Controls
 
+### Keyboard
 - `↑/↓`: Navigate through tasks
 - `1/2/3`: Toggle task in respective steps (Step 1, Step 2, Step 3)
 - `Enter`: Run entire sequence
@@ -56,6 +61,12 @@ The application now features a complete matrix-style interface:
 - `Tab`: Show task info/content
 - `c`: Clear all sequence assignments
 - `q`: Quit application
+
+### Mouse
+- **Click buttons**: Direct interaction with [run], [cat], [edit] task buttons
+- **Click sequence controls**: [Run sequence], [Copy as task], [Clear] buttons
+- **Scroll**: Navigate through task lists with mouse wheel
+- **Hover**: Visual feedback on interactive elements
 
 ## Architecture Overview
 
@@ -79,7 +90,9 @@ src/
 │   ├── task_list.rs  # Simple task list (fallback)
 │   ├── task_detail.rs # Task detail view (fallback)
 │   ├── task_running.rs # Task execution view (fallback)
-│   └── sequence_builder.rs # Matrix sequence builder (primary)
+│   ├── sequence_builder.rs # Matrix sequence builder (primary)
+│   ├── button_layout.rs # Mouse interaction and button positioning
+│   └── constants.rs  # UI constants and styling definitions
 └── main.rs           # Application entry point
 ```
 
