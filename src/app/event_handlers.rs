@@ -3,7 +3,7 @@ use ratatui::crossterm::event::KeyCode;
 use std::time::Instant;
 
 use super::App;
-use crate::models::{AppEvent, AppState};
+use crate::models::{AppEvent, AppState, SequenceEvent};
 
 impl App {
     pub async fn handle_event(&mut self, event: AppEvent) -> Result<()> {
@@ -30,6 +30,9 @@ impl App {
             AppEvent::Tick => {
                 // Handle periodic updates if needed
             }
+            AppEvent::Sequence(sequence_event) => {
+                self.handle_sequence_event(sequence_event)?;
+            }
         }
         Ok(())
     }
@@ -45,11 +48,37 @@ impl App {
                 self.show_task_detail().await?
             }
             (AppState::List, KeyCode::Char('x')) => self.run_selected_task().await?,
+            (AppState::List, KeyCode::Char('s')) => {
+                self.state = AppState::SequenceBuilder;
+            }
 
             (AppState::Detail(_), KeyCode::Esc | KeyCode::Char('b')) => self.back_to_list(),
             (AppState::Detail(_), KeyCode::Char('x')) => self.run_selected_task().await?,
 
             (AppState::Running(_), KeyCode::Esc | KeyCode::Char('b')) => self.back_to_list(),
+
+            // Sequence Builder controls
+            (AppState::SequenceBuilder, KeyCode::Down | KeyCode::Char('j')) => self.select_next(),
+            (AppState::SequenceBuilder, KeyCode::Up | KeyCode::Char('k')) => self.select_previous(),
+            (AppState::SequenceBuilder, KeyCode::Char('1')) => self.toggle_current_task_step(0)?,
+            (AppState::SequenceBuilder, KeyCode::Char('2')) => self.toggle_current_task_step(1)?,
+            (AppState::SequenceBuilder, KeyCode::Char('3')) => self.toggle_current_task_step(2)?,
+            (AppState::SequenceBuilder, KeyCode::Enter) => {
+                let _ = self
+                    .event_tx
+                    .send(AppEvent::Sequence(SequenceEvent::RunSequence));
+            }
+            (AppState::SequenceBuilder, KeyCode::Char('c')) => {
+                let _ = self
+                    .event_tx
+                    .send(AppEvent::Sequence(SequenceEvent::ClearSequence));
+            }
+            (AppState::SequenceBuilder, KeyCode::Char('x')) => self.run_current_task().await?,
+            (AppState::SequenceBuilder, KeyCode::Char('e')) => self.edit_current_task().await?,
+            (AppState::SequenceBuilder, KeyCode::Tab) => self.show_current_task_content().await?,
+            (AppState::SequenceBuilder, KeyCode::Esc | KeyCode::Char('b')) => {
+                self.state = AppState::List;
+            }
 
             _ => {}
         }

@@ -3,9 +3,10 @@ use std::{collections::VecDeque, time::Instant};
 use tokio::sync::mpsc;
 
 use crate::mise::MiseClient;
-use crate::models::{AppEvent, AppState, MiseTask, MiseTaskInfo};
+use crate::models::{AppEvent, AppState, MiseTask, MiseTaskInfo, SequenceState};
 
 pub mod event_handlers;
+pub mod sequence_management;
 pub mod task_management;
 
 pub struct App {
@@ -19,6 +20,7 @@ pub struct App {
     pub last_updated: Instant,
     pub event_tx: mpsc::UnboundedSender<AppEvent>,
     pub task_output_rx: Option<mpsc::UnboundedReceiver<String>>,
+    pub sequence_state: SequenceState,
 }
 
 impl App {
@@ -27,13 +29,14 @@ impl App {
             client: MiseClient::new(),
             tasks: vec![],
             selected_task: 0,
-            state: AppState::List,
+            state: AppState::SequenceBuilder,
             task_info: None,
             task_output: VecDeque::new(),
             should_quit: false,
             last_updated: Instant::now(),
             event_tx,
             task_output_rx: None,
+            sequence_state: SequenceState::new(3),
         }
     }
 

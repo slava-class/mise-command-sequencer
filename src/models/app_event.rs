@@ -1,4 +1,5 @@
 use super::mise_task::{MiseTask, MiseTaskInfo};
+use super::sequence::SequenceEvent;
 use ratatui::crossterm::event::KeyCode;
 
 #[derive(Debug, Clone)]
@@ -11,4 +12,5 @@ pub enum AppEvent {
     TaskOutput(String),
     TaskCompleted,
     Tick,
+    Sequence(SequenceEvent),
 }

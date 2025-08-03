@@ -7,3 +7,5 @@ trunk = "latest"
 fmt = "trunk fmt --all"
 check = "trunk check --all"
 repomix = "bunx repomix --copy"
+
+check_green = "cargo check && cargo build && mise run fmt && mise run check"
