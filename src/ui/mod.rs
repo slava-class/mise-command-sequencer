@@ -9,7 +9,7 @@ pub mod task_list;
 pub mod task_running;
 
 impl App {
-    pub fn draw(&self, f: &mut Frame) {
+    pub fn draw(&mut self, f: &mut Frame) {
         match &self.state {
             AppState::List => task_list::draw_task_list(self, f),
             AppState::Detail(task_name) => task_detail::draw_task_detail(self, f, task_name),

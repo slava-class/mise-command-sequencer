@@ -8,7 +8,29 @@ use ratatui::{
 
 use crate::app::App;
 
-pub fn draw_sequence_builder(app: &App, f: &mut Frame) {
+pub struct TableLayout {
+    pub table_area: Rect,
+    pub column_rects: Vec<Rect>,
+}
+
+pub fn calculate_table_layout(area: Rect, num_steps: usize) -> TableLayout {
+    // Create constraints matching the table in draw_matrix_interface
+    let mut constraints = vec![Constraint::Min(20)]; // Task name column
+    for _ in 0..num_steps {
+        constraints.push(Constraint::Length(8)); // Step columns
+    }
+    constraints.push(Constraint::Min(20)); // Actions column
+
+    // Calculate column positions using ratatui's layout system
+    let column_layout = Layout::horizontal(constraints).split(area);
+
+    TableLayout {
+        table_area: area,
+        column_rects: column_layout.to_vec(),
+    }
+}
+
+pub fn draw_sequence_builder(app: &mut App, f: &mut Frame) {
     let chunks = Layout::default()
         .direction(Direction::Vertical)
         .constraints([
@@ -23,8 +45,11 @@ pub fn draw_sequence_builder(app: &App, f: &mut Frame) {
     draw_controls(f, chunks[2]);
 }
 
-fn draw_matrix_interface(app: &App, f: &mut Frame, area: Rect) {
+fn draw_matrix_interface(app: &mut App, f: &mut Frame, area: Rect) {
     let num_steps = 3; // Default to 3 steps for now
+
+    // Calculate and store table layout for mouse click detection
+    app.table_layout = Some(calculate_table_layout(area, num_steps));
 
     // Create headers: Task Name, Step 1, Step 2, Step 3, Actions
     let mut header_cells =

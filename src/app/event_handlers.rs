@@ -1,5 +1,5 @@
 use anyhow::Result;
-use ratatui::crossterm::event::KeyCode;
+use ratatui::crossterm::event::{KeyCode, MouseButton};
 use std::time::Instant;
 
 use super::App;
@@ -10,6 +10,9 @@ impl App {
         match event {
             AppEvent::Quit => self.should_quit = true,
             AppEvent::KeyPress(key) => self.handle_key(key).await?,
+            AppEvent::MouseClick { button, row, col } => {
+                self.handle_mouse_click(button, row, col).await?
+            }
             AppEvent::TasksRefreshed(tasks) => {
                 self.tasks = tasks;
                 self.last_updated = Instant::now();
@@ -81,6 +84,108 @@ impl App {
             }
 
             _ => {}
+        }
+        Ok(())
+    }
+
+    pub async fn handle_mouse_click(
+        &mut self,
+        button: MouseButton,
+        row: u16,
+        col: u16,
+    ) -> Result<()> {
+        // Only handle left mouse button clicks
+        if button != MouseButton::Left {
+            return Ok(());
+        }
+
+        match &self.state {
+            AppState::SequenceBuilder => {
+                self.handle_sequence_builder_click(row, col).await?;
+            }
+            _ => {
+                // Handle clicks in other states if needed
+            }
+        }
+        Ok(())
+    }
+
+    async fn handle_sequence_builder_click(&mut self, row: u16, col: u16) -> Result<()> {
+        // Get the stored table layout for accurate column detection
+        let Some(table_layout) = &self.table_layout else {
+            return Ok(());
+        };
+
+        // Calculate which task row was clicked (accounting for header and borders)
+        // The table area starts at table_layout.table_area.y
+        // Header row is at y + 1, data rows start at y + 2
+        let table_start_row = table_layout.table_area.y;
+        if row >= table_start_row + 2 {
+            let task_index = (row - table_start_row - 2) as usize;
+            if task_index < self.tasks.len() {
+                // Update selected task
+                self.selected_task = task_index;
+
+                // Use the calculated column rectangles for accurate hit detection
+                let num_steps = 3;
+
+                // Column 0: Task name
+                // Columns 1-3: Step columns
+                // Column 4: Actions column
+
+                // Check step columns (1, 2, 3)
+                for step in 0..num_steps {
+                    let column_index = step + 1; // Steps start at column 1
+                    if column_index < table_layout.column_rects.len() {
+                        let column_rect = table_layout.column_rects[column_index];
+                        if col >= column_rect.x && col < column_rect.x + column_rect.width {
+                            self.toggle_current_task_step(step)?;
+                            return Ok(());
+                        }
+                    }
+                }
+
+                // Check actions column (last column)
+                if let Some(actions_rect) = table_layout.column_rects.last() {
+                    if col >= actions_rect.x && col < actions_rect.x + actions_rect.width {
+                        // Calculate button positions within the actions column
+                        // Actions text: "[run] [cat] [edit]"
+                        let relative_col = col - actions_rect.x;
+                        if (0..=4).contains(&relative_col) {
+                            // "run" button
+                            self.run_current_task().await?;
+                        } else if (6..=10).contains(&relative_col) {
+                            // "cat" button
+                            self.show_current_task_content().await?;
+                        } else if (12..=17).contains(&relative_col) {
+                            // "edit" button
+                            self.edit_current_task().await?;
+                        }
+                    }
+                }
+            }
+        }
+        // Check for sequence control buttons in the title area
+        else if row == table_start_row {
+            // The sequence controls are rendered in the top-right of the title
+            // This is a rough approximation - could be improved with more precise layout tracking
+            let terminal_width = table_layout.table_area.width;
+            let controls_start = terminal_width.saturating_sub(30);
+
+            if col >= controls_start {
+                let relative_col = col - controls_start;
+                if (0..=13).contains(&relative_col) {
+                    // "Run sequence" button
+                    let _ = self
+                        .event_tx
+                        .send(AppEvent::Sequence(SequenceEvent::RunSequence));
+                } else if (15..=21).contains(&relative_col) {
+                    // "Clear" button
+                    let _ = self
+                        .event_tx
+                        .send(AppEvent::Sequence(SequenceEvent::ClearSequence));
+                }
+            }
         }
         Ok(())
     }

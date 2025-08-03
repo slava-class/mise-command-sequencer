@@ -1,4 +1,4 @@
-use ratatui::crossterm::event::{self, Event, KeyEventKind};
+use ratatui::crossterm::event::{self, Event, KeyEventKind, MouseEventKind};
 use std::time::Duration;
 use tokio::{sync::mpsc, time::sleep};
 
@@ -8,12 +8,29 @@ pub fn spawn_input_handler(event_tx: mpsc::UnboundedSender<AppEvent>) {
     tokio::spawn(async move {
         loop {
             if event::poll(Duration::from_millis(100)).unwrap_or(false) {
-                if let Ok(Event::Key(key)) = event::read() {
-                    if key.kind == KeyEventKind::Press
-                        && event_tx.send(AppEvent::KeyPress(key.code)).is_err()
-                    {
-                        break;
+                match event::read() {
+                    Ok(Event::Key(key)) => {
+                        if key.kind == KeyEventKind::Press
+                            && event_tx.send(AppEvent::KeyPress(key.code)).is_err()
+                        {
+                            break;
+                        }
                     }
+                    Ok(Event::Mouse(mouse)) => {
+                        if let MouseEventKind::Down(button) = mouse.kind {
+                            if event_tx
+                                .send(AppEvent::MouseClick {
+                                    button,
+                                    row: mouse.row,
+                                    col: mouse.column,
+                                })
+                                .is_err()
+                            {
+                                break;
+                            }
+                        }
+                    }
+                    _ => {}
                 }
             }
             sleep(Duration::from_millis(10)).await;

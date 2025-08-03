@@ -4,6 +4,7 @@ use tokio::sync::mpsc;
 
 use crate::mise::MiseClient;
 use crate::models::{AppEvent, AppState, MiseTask, MiseTaskInfo, SequenceState};
+use crate::ui::sequence_builder::TableLayout;
 
 pub mod event_handlers;
 pub mod sequence_management;
@@ -21,6 +22,7 @@ pub struct App {
     pub event_tx: mpsc::UnboundedSender<AppEvent>,
     pub task_output_rx: Option<mpsc::UnboundedReceiver<String>>,
     pub sequence_state: SequenceState,
+    pub table_layout: Option<TableLayout>,
 }
 
 impl App {
@@ -37,6 +39,7 @@ impl App {
             event_tx,
             task_output_rx: None,
             sequence_state: SequenceState::new(3),
+            table_layout: None,
         }
     }
 

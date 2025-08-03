@@ -92,6 +92,7 @@ src/
 
 ## Development Commands
 
+- `mise run check_green` - Command to run until green
 - `cargo run` - Start the sequence builder TUI
 - `cargo check` - Type check all modules
 - `cargo build --release` - Build optimized binary
