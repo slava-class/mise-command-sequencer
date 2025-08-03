@@ -188,9 +188,21 @@ fn draw_task_output(app: &App, f: &mut Frame, area: Rect) {
         }
     }
 
-    // Add task output
+    // Add task output with ANSI color support
     for line in app.task_output.iter() {
-        output_text.push(Line::raw(line.clone()));
+        // Parse ANSI escape sequences and convert to ratatui Text
+        match ansi_to_tui::IntoText::into_text(line) {
+            Ok(parsed_text) => {
+                // Extract lines from the parsed text and add them
+                for parsed_line in parsed_text.lines {
+                    output_text.push(parsed_line);
+                }
+            }
+            Err(_) => {
+                // Fallback to raw text if parsing fails
+                output_text.push(Line::raw(line.clone()));
+            }
+        }
     }
 
     let output = Paragraph::new(output_text)

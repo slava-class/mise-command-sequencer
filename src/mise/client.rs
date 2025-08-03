@@ -78,7 +78,11 @@ impl MiseClient {
             cmd.arg(arg);
         }
 
-        cmd.stdout(Stdio::piped()).stderr(Stdio::piped());
+        cmd.stdout(Stdio::piped())
+            .stderr(Stdio::piped())
+            .env("FORCE_COLOR", "1")
+            .env("CLICOLOR_FORCE", "1")
+            .env("TERM", "xterm-256color");
 
         let mut child = cmd.spawn().context("Failed to spawn mise run command")?;
 
