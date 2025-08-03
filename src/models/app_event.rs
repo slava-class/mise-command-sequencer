@@ -1,4 +1,4 @@
-use super::mise_task::{MiseTask, MiseTaskInfo};
+use super::mise_task::MiseTask;
 use super::sequence::SequenceEvent;
 use ratatui::crossterm::event::{KeyCode, MouseButton};
 
@@ -20,9 +20,9 @@ pub enum AppEvent {
         col: u16,
     },
     TasksRefreshed(Vec<MiseTask>),
-    TaskInfoLoaded(Box<MiseTaskInfo>),
     TaskOutput(String),
     TaskCompleted,
+    TaskCancelled,
     Tick,
     Sequence(SequenceEvent),
 }

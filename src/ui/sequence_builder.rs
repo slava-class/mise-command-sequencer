@@ -31,18 +31,32 @@ pub fn calculate_table_layout(area: Rect, num_steps: usize) -> TableLayout {
 }
 
 pub fn draw_sequence_builder(app: &mut App, f: &mut Frame) {
-    let chunks = Layout::default()
-        .direction(Direction::Vertical)
-        .constraints([
-            Constraint::Min(8),    // Matrix interface
-            Constraint::Min(5),    // Task output
-            Constraint::Length(3), // Controls
-        ])
-        .split(f.area());
+    let chunks = if app.show_output_pane {
+        Layout::default()
+            .direction(Direction::Vertical)
+            .constraints([
+                Constraint::Min(8),    // Matrix interface
+                Constraint::Min(5),    // Task output
+                Constraint::Length(3), // Controls
+            ])
+            .split(f.area())
+    } else {
+        Layout::default()
+            .direction(Direction::Vertical)
+            .constraints([
+                Constraint::Min(8),    // Matrix interface
+                Constraint::Length(3), // Controls
+            ])
+            .split(f.area())
+    };
 
     draw_matrix_interface(app, f, chunks[0]);
-    draw_task_output(app, f, chunks[1]);
-    draw_controls(f, chunks[2]);
+    if app.show_output_pane {
+        draw_task_output(app, f, chunks[1]);
+        draw_controls(f, chunks[2]);
+    } else {
+        draw_controls(f, chunks[1]);
+    }
 }
 
 fn draw_matrix_interface(app: &mut App, f: &mut Frame, area: Rect) {

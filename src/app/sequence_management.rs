@@ -31,11 +31,13 @@ impl App {
             }
             SequenceEvent::SequenceCompleted => {
                 self.sequence_state.reset_execution();
+                self.task_running = false;
             }
             SequenceEvent::SequenceFailed(error) => {
                 self.task_output
                     .push_back(format!("Sequence failed: {error}"));
                 self.sequence_state.reset_execution();
+                self.task_running = false;
             }
         }
         Ok(())
@@ -57,6 +59,8 @@ impl App {
 
         self.sequence_state.start_execution();
         self.task_output.clear();
+        self.show_output_pane = true;
+        self.task_running = true;
         self.execute_current_step()?;
         Ok(())
     }
@@ -88,7 +92,7 @@ impl App {
         self.task_output_rx = Some(output_rx);
 
         // Spawn task execution for all tasks in sequence
-        tokio::spawn(async move {
+        let handle = tokio::spawn(async move {
             let mut all_success = true;
 
             for task_name in tasks {
@@ -113,11 +117,33 @@ impl App {
             }
         });
 
+        self.running_task_handle = Some(handle);
+
         Ok(())
     }
 
     pub async fn run_current_task(&mut self) -> Result<()> {
-        self.run_selected_task().await
+        if let Some(task) = self.tasks.get(self.selected_task) {
+            let (output_tx, output_rx) = mpsc::unbounded_channel();
+            self.task_output_rx = Some(output_rx);
+            self.task_output.clear();
+            self.show_output_pane = true;
+            self.task_running = true;
+
+            let client = self.client.clone();
+            let task_name = task.name.clone();
+            let event_tx = self.event_tx.clone();
+
+            let handle = tokio::spawn(async move {
+                if let Err(e) = client.run_task(&task_name, &[], output_tx).await {
+                    eprintln!("Failed to run task: {e}");
+                }
+                let _ = event_tx.send(AppEvent::TaskCompleted);
+            });
+
+            self.running_task_handle = Some(handle);
+        }
+        Ok(())
     }
 
     pub async fn edit_current_task(&mut self) -> Result<()> {
@@ -159,6 +185,8 @@ impl App {
         match self.client.get_task_info(&task_name).await {
             Ok(task_info) => {
                 self.task_output.clear();
+                self.show_output_pane = true;
+                self.task_running = false;
                 self.task_output
                     .push_back(format!("=== Task: {task_name} ==="));
 
@@ -184,6 +212,8 @@ impl App {
             }
             Err(e) => {
                 self.task_output.clear();
+                self.show_output_pane = true;
+                self.task_running = false;
                 self.task_output
                     .push_back(format!("Failed to get task info: {e}"));
             }

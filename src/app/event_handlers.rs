@@ -25,9 +25,6 @@ impl App {
                 self.tasks = tasks;
                 self.last_updated = Instant::now();
             }
-            AppEvent::TaskInfoLoaded(info) => {
-                self.task_info = Some(*info);
-            }
             AppEvent::TaskOutput(output) => {
                 self.task_output.push_back(output);
                 // Keep only the last 100 lines
@@ -36,7 +33,14 @@ impl App {
                 }
             }
             AppEvent::TaskCompleted => {
-                // Task has completed, we could transition state or just stay
+                self.task_running = false;
+                self.running_task_handle = None;
+            }
+            AppEvent::TaskCancelled => {
+                self.task_running = false;
+                self.running_task_handle = None;
+                self.task_output
+                    .push_back("Task cancelled by user".to_string());
             }
             AppEvent::Tick => {
                 // Handle periodic updates if needed
@@ -52,15 +56,12 @@ impl App {
         match (&self.state, key) {
             (_, KeyCode::Char('q')) => self.should_quit = true,
             (_, KeyCode::Char('r')) => self.refresh_tasks().await?,
-
-            (AppState::List, KeyCode::Down | KeyCode::Char('j')) => self.select_next(),
-            (AppState::List, KeyCode::Up | KeyCode::Char('k')) => self.select_previous(),
-            (AppState::List, KeyCode::Enter | KeyCode::Char(' ')) => {
-                self.show_task_detail().await?
-            }
-            (AppState::List, KeyCode::Char('x')) => self.run_selected_task().await?,
-            (AppState::List, KeyCode::Char('s')) => {
-                self.state = AppState::SequenceBuilder;
+            // Handle Ctrl+C to cancel running tasks
+            (_, KeyCode::Char('c')) if self.task_running => {
+                if let Some(handle) = self.running_task_handle.take() {
+                    handle.abort();
+                }
+                let _ = self.event_tx.send(AppEvent::TaskCancelled);
             }
 
             (AppState::Detail(_), KeyCode::Esc | KeyCode::Char('b')) => self.back_to_list(),
@@ -113,7 +114,14 @@ impl App {
             (AppState::SequenceBuilder, KeyCode::Char('e')) => self.edit_current_task().await?,
             (AppState::SequenceBuilder, KeyCode::Tab) => self.show_current_task_content().await?,
             (AppState::SequenceBuilder, KeyCode::Esc | KeyCode::Char('b')) => {
-                self.state = AppState::List;
+                if self.show_output_pane && !self.task_running {
+                    // Close output pane if task is finished
+                    self.show_output_pane = false;
+                    self.task_output.clear();
+                    self.task_output_rx = None;
+                } else {
+                    self.state = AppState::SequenceBuilder;
+                }
             }
 
             _ => {}

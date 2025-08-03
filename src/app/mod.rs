@@ -1,6 +1,7 @@
 use anyhow::Result;
 use std::{collections::VecDeque, time::Instant};
 use tokio::sync::mpsc;
+use tokio::task::JoinHandle;
 
 use crate::mise::MiseClient;
 use crate::models::{AppEvent, AppState, MiseTask, MiseTaskInfo, SequenceState};
@@ -24,6 +25,9 @@ pub struct App {
     pub task_output_rx: Option<mpsc::UnboundedReceiver<String>>,
     pub sequence_state: SequenceState,
     pub table_layout: Option<TableLayout>,
+    pub show_output_pane: bool,
+    pub task_running: bool,
+    pub running_task_handle: Option<JoinHandle<()>>,
 }
 
 impl App {
@@ -42,6 +46,9 @@ impl App {
             task_output_rx: None,
             sequence_state: SequenceState::new(3),
             table_layout: None,
+            show_output_pane: false,
+            task_running: false,
+            running_task_handle: None,
         }
     }
 
@@ -126,10 +133,13 @@ impl App {
     }
 
     pub fn back_to_list(&mut self) {
-        self.state = AppState::List;
+        self.state = AppState::SequenceBuilder;
         self.task_info = None;
         self.task_output.clear();
         self.task_output_rx = None;
+        self.show_output_pane = false;
+        self.task_running = false;
+        self.running_task_handle = None;
     }
 }
 
@@ -264,7 +274,7 @@ mod tests {
 
         app.back_to_list();
 
-        assert_eq!(app.state, AppState::List);
+        assert_eq!(app.state, AppState::SequenceBuilder);
         assert!(app.task_info.is_none());
         assert_eq!(app.task_output.len(), 0);
         assert!(app.task_output_rx.is_none());
