@@ -84,3 +84,148 @@ impl App {
         self.task_output_rx = None;
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::models::MiseTask;
+
+    fn create_test_app() -> App {
+        let (tx, _rx) = mpsc::unbounded_channel();
+        App::new(tx)
+    }
+
+    #[test]
+    fn test_app_new() {
+        let (tx, _rx) = mpsc::unbounded_channel();
+        let app = App::new(tx);
+
+        assert_eq!(app.tasks.len(), 0);
+        assert_eq!(app.selected_task, 0);
+        assert_eq!(app.state, AppState::SequenceBuilder);
+        assert!(app.task_info.is_none());
+        assert_eq!(app.task_output.len(), 0);
+        assert!(!app.should_quit);
+        assert!(app.task_output_rx.is_none());
+        assert_eq!(app.sequence_state.num_steps, 3);
+        assert!(app.table_layout.is_none());
+    }
+
+    #[test]
+    fn test_should_quit() {
+        let mut app = create_test_app();
+
+        assert!(!app.should_quit());
+
+        app.should_quit = true;
+        assert!(app.should_quit());
+    }
+
+    #[test]
+    fn test_select_next_empty_list() {
+        let mut app = create_test_app();
+
+        app.select_next();
+        assert_eq!(app.selected_task, 0);
+    }
+
+    #[test]
+    fn test_select_next_with_tasks() {
+        let mut app = create_test_app();
+        app.tasks = vec![
+            MiseTask::new("task1".to_string(), "source1".to_string()),
+            MiseTask::new("task2".to_string(), "source2".to_string()),
+            MiseTask::new("task3".to_string(), "source3".to_string()),
+        ];
+
+        assert_eq!(app.selected_task, 0);
+
+        app.select_next();
+        assert_eq!(app.selected_task, 1);
+
+        app.select_next();
+        assert_eq!(app.selected_task, 2);
+
+        // Test wraparound
+        app.select_next();
+        assert_eq!(app.selected_task, 0);
+    }
+
+    #[test]
+    fn test_select_previous_empty_list() {
+        let mut app = create_test_app();
+
+        app.select_previous();
+        assert_eq!(app.selected_task, 0);
+    }
+
+    #[test]
+    fn test_select_previous_with_tasks() {
+        let mut app = create_test_app();
+        app.tasks = vec![
+            MiseTask::new("task1".to_string(), "source1".to_string()),
+            MiseTask::new("task2".to_string(), "source2".to_string()),
+            MiseTask::new("task3".to_string(), "source3".to_string()),
+        ];
+        app.selected_task = 1;
+
+        app.select_previous();
+        assert_eq!(app.selected_task, 0);
+
+        // Test wraparound from 0
+        app.select_previous();
+        assert_eq!(app.selected_task, 2);
+
+        app.select_previous();
+        assert_eq!(app.selected_task, 1);
+    }
+
+    #[test]
+    fn test_select_single_task() {
+        let mut app = create_test_app();
+        app.tasks = vec![MiseTask::new("task1".to_string(), "source1".to_string())];
+
+        app.select_next();
+        assert_eq!(app.selected_task, 0);
+
+        app.select_previous();
+        assert_eq!(app.selected_task, 0);
+    }
+
+    #[test]
+    fn test_back_to_list() {
+        let mut app = create_test_app();
+
+        // Set up some state
+        app.state = AppState::Detail("test".to_string());
+        app.task_info = Some(MiseTaskInfo {
+            name: "test".to_string(),
+            description: Some("desc".to_string()),
+            source: "source".to_string(),
+            file: None,
+            dir: None,
+            hide: None,
+            alias: None,
+            run: None,
+            depends: None,
+            env: None,
+        });
+        app.task_output.push_back("output1".to_string());
+        app.task_output.push_back("output2".to_string());
+
+        app.back_to_list();
+
+        assert_eq!(app.state, AppState::List);
+        assert!(app.task_info.is_none());
+        assert_eq!(app.task_output.len(), 0);
+        assert!(app.task_output_rx.is_none());
+    }
+
+    #[test]
+    fn test_poll_task_output_no_receiver() {
+        let mut app = create_test_app();
+
+        // Should not panic when no receiver is set
+        app.poll_task_output();
+    }
+}

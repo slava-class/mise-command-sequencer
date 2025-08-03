@@ -8,4 +8,8 @@ fmt = "trunk fmt --all"
 check = "trunk check --all"
 repomix = "bunx repomix --copy"
 
-check_green = "cargo check && cargo build && mise run fmt && mise run check"
+# Coverage tasks
+coverage = "cargo tarpaulin --config tarpaulin.toml"
+coverage-watch = "cargo watch -x 'tarpaulin --config tarpaulin.toml'"
+
+check_green = "cargo check && cargo build && mise run fmt && mise run check && mise run coverage"

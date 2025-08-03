@@ -92,12 +92,14 @@ src/
 
 ## Development Commands
 
-- `mise run check_green` - Command to run until green
+- `mise run check_green` - Command to run until green (includes coverage)
 - `cargo run` - Start the sequence builder TUI
 - `cargo check` - Type check all modules
 - `cargo build --release` - Build optimized binary
 - `mise run fmt` - Format code with trunk
 - `mise run check` - Run linters and checks
+- `mise run coverage` - Generate LCOV coverage report for VSCode
+- `mise run coverage-watch` - Watch files and regenerate coverage on changes
 
 ## Future Enhancements
 

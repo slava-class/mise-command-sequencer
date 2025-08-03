@@ -97,3 +97,148 @@ pub enum SequenceEvent {
     SequenceCompleted,
     SequenceFailed(String),
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_sequence_state_new() {
+        let seq = SequenceState::new(3);
+        assert_eq!(seq.num_steps, 3);
+        assert_eq!(seq.task_steps.len(), 0);
+        assert_eq!(seq.current_step, None);
+        assert!(!seq.is_running);
+        assert_eq!(seq.completed_steps, vec![false, false, false]);
+    }
+
+    #[test]
+    fn test_set_and_get_task_step() {
+        let mut seq = SequenceState::new(3);
+
+        seq.set_task_step("build", 0, true);
+        seq.set_task_step("test", 1, true);
+        seq.set_task_step("build", 2, true);
+
+        assert!(seq.is_task_enabled_for_step("build", 0));
+        assert!(!seq.is_task_enabled_for_step("build", 1));
+        assert!(seq.is_task_enabled_for_step("build", 2));
+        assert!(seq.is_task_enabled_for_step("test", 1));
+        assert!(!seq.is_task_enabled_for_step("test", 0));
+    }
+
+    #[test]
+    fn test_set_task_step_bounds() {
+        let mut seq = SequenceState::new(2);
+
+        seq.set_task_step("build", 5, true); // Out of bounds
+        assert!(!seq.is_task_enabled_for_step("build", 5));
+        assert_eq!(seq.task_steps.len(), 0); // Should not create entry
+    }
+
+    #[test]
+    fn test_is_task_enabled_for_nonexistent_task() {
+        let seq = SequenceState::new(3);
+        assert!(!seq.is_task_enabled_for_step("nonexistent", 0));
+    }
+
+    #[test]
+    fn test_get_tasks_for_step() {
+        let mut seq = SequenceState::new(3);
+
+        seq.set_task_step("build", 0, true);
+        seq.set_task_step("test", 0, true);
+        seq.set_task_step("deploy", 1, true);
+
+        let step0_tasks = seq.get_tasks_for_step(0);
+        assert_eq!(step0_tasks.len(), 2);
+        assert!(step0_tasks.contains(&"build".to_string()));
+        assert!(step0_tasks.contains(&"test".to_string()));
+
+        let step1_tasks = seq.get_tasks_for_step(1);
+        assert_eq!(step1_tasks.len(), 1);
+        assert!(step1_tasks.contains(&"deploy".to_string()));
+
+        let step2_tasks = seq.get_tasks_for_step(2);
+        assert_eq!(step2_tasks.len(), 0);
+    }
+
+    #[test]
+    fn test_clear_all() {
+        let mut seq = SequenceState::new(3);
+
+        seq.set_task_step("build", 0, true);
+        seq.set_task_step("test", 1, true);
+        seq.start_execution();
+
+        seq.clear_all();
+
+        assert!(!seq.is_task_enabled_for_step("build", 0));
+        assert!(!seq.is_task_enabled_for_step("test", 1));
+        assert_eq!(seq.current_step, None);
+        assert!(!seq.is_running);
+        assert_eq!(seq.completed_steps, vec![false, false, false]);
+    }
+
+    #[test]
+    fn test_reset_execution() {
+        let mut seq = SequenceState::new(3);
+        seq.start_execution();
+        seq.completed_steps[0] = true;
+
+        seq.reset_execution();
+
+        assert_eq!(seq.current_step, None);
+        assert!(!seq.is_running);
+        assert_eq!(seq.completed_steps, vec![false, false, false]);
+    }
+
+    #[test]
+    fn test_start_execution() {
+        let mut seq = SequenceState::new(3);
+
+        seq.start_execution();
+
+        assert_eq!(seq.current_step, Some(0));
+        assert!(seq.is_running);
+        assert_eq!(seq.completed_steps, vec![false, false, false]);
+    }
+
+    #[test]
+    fn test_advance_step() {
+        let mut seq = SequenceState::new(3);
+        seq.start_execution();
+
+        // Advance from step 0 to 1
+        let has_more = seq.advance_step();
+        assert!(has_more);
+        assert_eq!(seq.current_step, Some(1));
+        assert!(seq.is_running);
+        assert_eq!(seq.completed_steps[0], true);
+        assert_eq!(seq.completed_steps[1], false);
+
+        // Advance from step 1 to 2
+        let has_more = seq.advance_step();
+        assert!(has_more);
+        assert_eq!(seq.current_step, Some(2));
+        assert!(seq.is_running);
+        assert_eq!(seq.completed_steps[1], true);
+
+        // Advance from step 2 (final step)
+        let has_more = seq.advance_step();
+        assert!(!has_more);
+        assert_eq!(seq.current_step, None);
+        assert!(!seq.is_running);
+        assert_eq!(seq.completed_steps[2], true);
+    }
+
+    #[test]
+    fn test_advance_step_when_not_running() {
+        let mut seq = SequenceState::new(3);
+
+        let has_more = seq.advance_step();
+        assert!(!has_more);
+        assert_eq!(seq.current_step, None);
+        assert!(!seq.is_running);
+    }
+}

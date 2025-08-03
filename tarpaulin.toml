@@ -1,0 +1,31 @@
+[coverage]
+# Use LLVM engine for better compatibility on macOS
+engine = "Llvm"
+
+# Output formats
+out = ["Lcov"]
+
+# Output directory
+output-dir = "target/coverage"
+
+# Clean settings
+skip-clean = true
+
+# Target only library and tests
+run-types = ["Tests"]
+
+# Exclude main.rs as it's just the binary entry point
+exclude-files = ["src/main.rs"]
+
+# Include test coverage
+include-tests = false
+ignore-tests = true
+
+# Don't follow exec to avoid TUI complications
+follow-exec = false
+
+# Use release mode for faster execution
+release = false
+
+# Avoid potential TUI/terminal issues
+implicit-test-threads = true
