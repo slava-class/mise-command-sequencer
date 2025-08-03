@@ -11,7 +11,6 @@ pub struct MiseTask {
 }
 
 impl MiseTask {
-    #[allow(dead_code)]
     pub fn new(name: String, source: String) -> Self {
         Self {
             name,
@@ -22,7 +21,6 @@ impl MiseTask {
         }
     }
 
-    #[allow(dead_code)]
     pub fn is_hidden(&self) -> bool {
         self.hide.unwrap_or(false)
     }

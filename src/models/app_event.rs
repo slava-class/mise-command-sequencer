@@ -4,7 +4,6 @@ use ratatui::crossterm::event::{KeyCode, MouseButton};
 
 #[derive(Debug, Clone)]
 pub enum AppEvent {
-    #[allow(dead_code)]
     Quit,
     KeyPress(KeyCode),
     MouseClick {
@@ -14,9 +13,11 @@ pub enum AppEvent {
     },
     MouseScroll {
         direction: ScrollDirection,
-        #[allow(dead_code)]
         row: u16,
-        #[allow(dead_code)]
+        col: u16,
+    },
+    MouseMove {
+        row: u16,
         col: u16,
     },
     TasksRefreshed(Vec<MiseTask>),
@@ -157,6 +158,46 @@ mod tests {
                 assert_eq!(col, 25);
             }
             _ => panic!("Expected MouseScroll variant"),
+        }
+    }
+
+    #[test]
+    fn test_mouse_move_event() {
+        let mouse_move = AppEvent::MouseMove { row: 12, col: 34 };
+
+        match mouse_move {
+            AppEvent::MouseMove { row, col } => {
+                assert_eq!(row, 12);
+                assert_eq!(col, 34);
+            }
+            _ => panic!("Expected MouseMove variant"),
+        }
+    }
+
+    #[test]
+    fn test_mouse_move_event_creation() {
+        let event = AppEvent::MouseMove { row: 0, col: 0 };
+
+        // Test that we can create MouseMove events with edge case values
+        match event {
+            AppEvent::MouseMove { row, col } => {
+                assert_eq!(row, 0);
+                assert_eq!(col, 0);
+            }
+            _ => panic!("Expected MouseMove variant"),
+        }
+
+        let event_max = AppEvent::MouseMove {
+            row: u16::MAX,
+            col: u16::MAX,
+        };
+
+        match event_max {
+            AppEvent::MouseMove { row, col } => {
+                assert_eq!(row, u16::MAX);
+                assert_eq!(col, u16::MAX);
+            }
+            _ => panic!("Expected MouseMove variant"),
         }
     }
 }

@@ -54,6 +54,17 @@ pub fn spawn_input_handler(event_tx: mpsc::UnboundedSender<AppEvent>) {
                                 break;
                             }
                         }
+                        MouseEventKind::Moved => {
+                            if event_tx
+                                .send(AppEvent::MouseMove {
+                                    row: mouse.row,
+                                    col: mouse.column,
+                                })
+                                .is_err()
+                            {
+                                break;
+                            }
+                        }
                         _ => {}
                     },
                     _ => {}

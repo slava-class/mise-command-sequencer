@@ -7,6 +7,7 @@ use ratatui::{
 };
 
 use crate::app::App;
+use crate::ui::button_layout::{ActionButton, ButtonType};
 
 pub struct TableLayout {
     pub table_area: Rect,
@@ -69,8 +70,10 @@ fn draw_matrix_interface(app: &mut App, f: &mut Frame, area: Rect) {
     let available_height = area.height.saturating_sub(3); // Header + top/bottom borders
     let visible_height = available_height as usize;
 
-    // Ensure selected task is visible and get visible tasks
-    app.ensure_selected_task_visible(visible_height);
+    // Store the current visible height for scroll calculations
+    app.current_visible_height = visible_height;
+
+    // Get visible tasks without automatically adjusting scroll
     let (visible_tasks, _selected_in_visible) = app.get_visible_tasks(visible_height);
 
     // Create headers: Task Name, Step 1, Step 2, Step 3, Actions
@@ -122,8 +125,9 @@ fn draw_matrix_interface(app: &mut App, f: &mut Frame, area: Rect) {
             cells.push(Cell::from(symbol).style(style));
         }
 
-        // Action buttons
-        cells.push(Cell::from("[run] [cat] [edit]").style(Style::default().fg(Color::Cyan)));
+        // Action buttons with hover styling
+        let action_buttons_cell = create_action_buttons_cell(app, actual_index);
+        cells.push(action_buttons_cell);
 
         rows.push(Row::new(cells).height(1));
     }
@@ -217,4 +221,56 @@ fn draw_controls(f: &mut Frame, area: Rect) {
     .style(Style::default().fg(Color::Gray));
 
     f.render_widget(controls, area);
+}
+
+fn create_action_buttons_cell(app: &App, task_index: usize) -> Cell {
+    // Check if any button in this row is being hovered
+    let hover_button = if let Some(hover_state) = &app.button_hover_state {
+        match hover_state.button_type {
+            ButtonType::Action {
+                button,
+                task_index: hovered_task_index,
+            } => {
+                if hovered_task_index == task_index {
+                    Some(button)
+                } else {
+                    None
+                }
+            }
+            _ => None,
+        }
+    } else {
+        None
+    };
+
+    // Create spans for each button with appropriate styling
+    let mut spans = Vec::new();
+
+    // Run button
+    let run_style = if matches!(hover_button, Some(ActionButton::Run)) {
+        Style::default().bg(Color::Green).fg(Color::Black)
+    } else {
+        Style::default().fg(Color::Cyan)
+    };
+    spans.push(Span::styled("[run]", run_style));
+
+    // Cat button
+    spans.push(Span::raw(" "));
+    let cat_style = if matches!(hover_button, Some(ActionButton::Cat)) {
+        Style::default().bg(Color::Blue).fg(Color::White)
+    } else {
+        Style::default().fg(Color::Cyan)
+    };
+    spans.push(Span::styled("[cat]", cat_style));
+
+    // Edit button
+    spans.push(Span::raw(" "));
+    let edit_style = if matches!(hover_button, Some(ActionButton::Edit)) {
+        Style::default().bg(Color::Magenta).fg(Color::White)
+    } else {
+        Style::default().fg(Color::Cyan)
+    };
+    spans.push(Span::styled("[edit]", edit_style));
+
+    Cell::from(Line::from(spans))
 }

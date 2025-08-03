@@ -5,6 +5,7 @@ use tokio::task::JoinHandle;
 
 use crate::mise::MiseClient;
 use crate::models::{AppEvent, AppState, MiseTask, MiseTaskInfo, SequenceState};
+use crate::ui::button_layout::ButtonHoverState;
 use crate::ui::sequence_builder::TableLayout;
 
 pub mod event_handlers;
@@ -28,6 +29,8 @@ pub struct App {
     pub show_output_pane: bool,
     pub task_running: bool,
     pub running_task_handle: Option<JoinHandle<()>>,
+    pub button_hover_state: Option<ButtonHoverState>,
+    pub current_visible_height: usize,
 }
 
 impl App {
@@ -49,6 +52,8 @@ impl App {
             show_output_pane: false,
             task_running: false,
             running_task_handle: None,
+            button_hover_state: None,
+            current_visible_height: 0,
         }
     }
 
@@ -140,6 +145,8 @@ impl App {
         self.show_output_pane = false;
         self.task_running = false;
         self.running_task_handle = None;
+        self.button_hover_state = None;
+        self.current_visible_height = 0;
     }
 }
 
@@ -168,6 +175,8 @@ mod tests {
         assert!(app.task_output_rx.is_none());
         assert_eq!(app.sequence_state.num_steps, 3);
         assert!(app.table_layout.is_none());
+        assert!(app.button_hover_state.is_none());
+        assert_eq!(app.current_visible_height, 0);
     }
 
     #[test]

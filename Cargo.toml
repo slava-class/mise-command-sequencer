@@ -16,3 +16,6 @@ path = "src/main.rs"
 
 [dev-dependencies]
 cargo-tarpaulin = "0.32.8"
+
+[lints.rust]
+dead_code = "allow"

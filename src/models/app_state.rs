@@ -1,6 +1,5 @@
 #[derive(Debug, PartialEq)]
 pub enum AppState {
-    #[allow(dead_code)]
     Detail(String),
     Running(String),
     SequenceBuilder,

@@ -5,6 +5,7 @@ use std::time::Instant;
 use super::App;
 use crate::models::app_event::ScrollDirection;
 use crate::models::{AppEvent, AppState, SequenceEvent};
+use crate::ui::button_layout::{ActionButton, ActionButtonLayout, ButtonHoverState, ButtonType};
 
 const DEFAULT_SCROLL_AMT: usize = 10;
 
@@ -21,6 +22,7 @@ impl App {
                 row: _,
                 col: _,
             } => self.handle_mouse_scroll(direction).await?,
+            AppEvent::MouseMove { row, col } => self.handle_mouse_move(row, col).await?,
             AppEvent::TasksRefreshed(tasks) => {
                 self.tasks = tasks;
                 self.last_updated = Instant::now();
@@ -70,32 +72,23 @@ impl App {
             (AppState::Running(_), KeyCode::Esc | KeyCode::Char('b')) => self.back_to_list(),
 
             // Sequence Builder controls
-            (AppState::SequenceBuilder, KeyCode::Down | KeyCode::Char('j')) => self.select_next(),
-            (AppState::SequenceBuilder, KeyCode::Up | KeyCode::Char('k')) => self.select_previous(),
+            (AppState::SequenceBuilder, KeyCode::Down | KeyCode::Char('j')) => {
+                self.select_next();
+                self.ensure_selected_task_visible(self.current_visible_height);
+            }
+            (AppState::SequenceBuilder, KeyCode::Up | KeyCode::Char('k')) => {
+                self.select_previous();
+                self.ensure_selected_task_visible(self.current_visible_height);
+            }
             (AppState::SequenceBuilder, KeyCode::PageDown) => {
-                let visible_height = if let Some(layout) = &self.table_layout {
-                    (layout.table_area.height.saturating_sub(3)) as usize
-                } else {
-                    DEFAULT_SCROLL_AMT // Fallback if layout not yet calculated
-                };
+                let visible_height = self.current_visible_height.max(1);
                 self.scroll_down(visible_height, visible_height);
-                // Move selection to the first visible task after scrolling
-                if self.selected_task < self.scroll_offset {
-                    self.selected_task = self.scroll_offset;
-                }
+                // Don't change selected task - let it go out of view if needed
             }
             (AppState::SequenceBuilder, KeyCode::PageUp) => {
-                let visible_height = if let Some(layout) = &self.table_layout {
-                    (layout.table_area.height.saturating_sub(3)) as usize
-                } else {
-                    DEFAULT_SCROLL_AMT // Fallback if layout not yet calculated
-                };
+                let visible_height = self.current_visible_height.max(1);
                 self.scroll_up(visible_height);
-                // Adjust selection if it's now below the visible area
-                if self.selected_task >= self.scroll_offset + visible_height {
-                    self.selected_task = (self.scroll_offset + visible_height - 1)
-                        .min(self.tasks.len().saturating_sub(1));
-                }
+                // Don't change selected task - let it go out of view if needed
             }
             (AppState::SequenceBuilder, KeyCode::Char('1')) => self.toggle_current_task_step(0)?,
             (AppState::SequenceBuilder, KeyCode::Char('2')) => self.toggle_current_task_step(1)?,
@@ -132,12 +125,12 @@ impl App {
     pub async fn handle_mouse_scroll(&mut self, direction: ScrollDirection) -> Result<()> {
         match &self.state {
             AppState::SequenceBuilder => {
-                // Get the actual visible height from the table layout if available
-                let visible_height = if let Some(layout) = &self.table_layout {
-                    // Calculate visible height: total area minus header and borders
-                    (layout.table_area.height.saturating_sub(3)) as usize
+                // Use the current visible height that was calculated during the last UI render
+                // This automatically accounts for whether the output pane is open or not
+                let visible_height = if self.current_visible_height > 0 {
+                    self.current_visible_height
                 } else {
-                    DEFAULT_SCROLL_AMT // Fallback if layout not yet calculated
+                    DEFAULT_SCROLL_AMT // Fallback if not yet calculated
                 };
 
                 match direction {
@@ -217,18 +210,15 @@ impl App {
                 // Check actions column (last column)
                 if let Some(actions_rect) = table_layout.column_rects.last() {
                     if col >= actions_rect.x && col < actions_rect.x + actions_rect.width {
-                        // Calculate button positions within the actions column
-                        // Actions text: "[run] [cat] [edit]"
+                        let action_layout = ActionButtonLayout::new(actions_rect);
                         let relative_col = col - actions_rect.x;
-                        if (0..=4).contains(&relative_col) {
-                            // "run" button
-                            self.run_current_task().await?;
-                        } else if (6..=10).contains(&relative_col) {
-                            // "cat" button
-                            self.show_current_task_content().await?;
-                        } else if (12..=17).contains(&relative_col) {
-                            // "edit" button
-                            self.edit_current_task().await?;
+
+                        if let Some(button) = action_layout.get_button_at_position(relative_col) {
+                            match button {
+                                ActionButton::Run => self.run_current_task().await?,
+                                ActionButton::Cat => self.show_current_task_content().await?,
+                                ActionButton::Edit => self.edit_current_task().await?,
+                            }
                         }
                     }
                 }
@@ -253,6 +243,59 @@ impl App {
                     let _ = self
                         .event_tx
                         .send(AppEvent::Sequence(SequenceEvent::ClearSequence));
+                }
+            }
+        }
+        Ok(())
+    }
+
+    pub async fn handle_mouse_move(&mut self, row: u16, col: u16) -> Result<()> {
+        match &self.state {
+            AppState::SequenceBuilder => {
+                self.handle_sequence_builder_hover(row, col)?;
+            }
+            _ => {
+                // Clear hover state in other states
+                self.button_hover_state = None;
+            }
+        }
+        Ok(())
+    }
+
+    fn handle_sequence_builder_hover(&mut self, row: u16, col: u16) -> Result<()> {
+        // Get the stored table layout for accurate column detection
+        let Some(table_layout) = &self.table_layout else {
+            self.button_hover_state = None;
+            return Ok(());
+        };
+
+        // Reset hover state by default
+        self.button_hover_state = None;
+
+        // Calculate which task row is being hovered (accounting for header and borders)
+        let table_start_row = table_layout.table_area.y;
+        if row >= table_start_row + 2 {
+            let visible_task_index = (row - table_start_row - 2) as usize;
+            let actual_task_index = self.scroll_offset + visible_task_index;
+
+            if actual_task_index < self.tasks.len() {
+                // Check actions column (last column)
+                if let Some(actions_rect) = table_layout.column_rects.last() {
+                    if col >= actions_rect.x && col < actions_rect.x + actions_rect.width {
+                        let action_layout = ActionButtonLayout::new(actions_rect);
+                        let relative_col = col - actions_rect.x;
+
+                        if let Some(button) = action_layout.get_button_at_position(relative_col) {
+                            self.button_hover_state = Some(ButtonHoverState::new(
+                                ButtonType::Action {
+                                    button,
+                                    task_index: actual_task_index,
+                                },
+                                row,
+                                col,
+                            ));
+                        }
+                    }
                 }
             }
         }
