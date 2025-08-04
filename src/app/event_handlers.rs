@@ -63,10 +63,13 @@ impl App {
                 self.running_task_handle = None;
             }
             AppEvent::TaskCancelled => {
-                self.task_running = false;
-                self.running_task_handle = None;
-                self.task_output
-                    .push_back("Task cancelled by user".to_string());
+                // Only update state if we're not already cancelled
+                if self.task_running || self.running_task_handle.is_some() {
+                    self.task_running = false;
+                    self.running_task_handle = None;
+                    self.task_output
+                        .push_back("Task cancelled by user".to_string());
+                }
             }
             AppEvent::Tick => {
                 // Handle periodic updates if needed
@@ -89,10 +92,16 @@ impl App {
             (_, KeyCode::Char('r')) => self.refresh_tasks().await?,
             // Handle Ctrl+C to cancel running tasks
             (_, KeyCode::Char('c')) if self.task_running => {
+                // First mark as cancelled to prevent new tasks from starting
+                self.task_running = false;
+
                 if let Some(handle) = self.running_task_handle.take() {
                     handle.abort();
+                    // Send cancellation event after handle is safely removed
+                    if self.event_tx.send(AppEvent::TaskCancelled).is_err() {
+                        eprintln!("Warning: Failed to send TaskCancelled event");
+                    }
                 }
-                let _ = self.event_tx.send(AppEvent::TaskCancelled);
             }
 
             (AppState::Detail(_), KeyCode::Esc | KeyCode::Char('b')) => self.back_to_list(),

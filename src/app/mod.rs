@@ -74,7 +74,9 @@ impl App {
     pub fn poll_task_output(&mut self) {
         if let Some(ref mut rx) = self.task_output_rx {
             while let Ok(output) = rx.try_recv() {
-                let _ = self.event_tx.send(AppEvent::TaskOutput(output));
+                if self.event_tx.send(AppEvent::TaskOutput(output)).is_err() {
+                    eprintln!("Warning: Failed to send TaskOutput event");
+                }
             }
         }
     }

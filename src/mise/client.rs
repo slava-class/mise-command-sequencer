@@ -86,8 +86,14 @@ impl MiseClient {
 
         let mut child = cmd.spawn().context("Failed to spawn mise run command")?;
 
-        let stdout = child.stdout.take().unwrap();
-        let stderr = child.stderr.take().unwrap();
+        let stdout = child
+            .stdout
+            .take()
+            .context("Failed to capture stdout from mise command")?;
+        let stderr = child
+            .stderr
+            .take()
+            .context("Failed to capture stderr from mise command")?;
 
         // Spawn tasks to read stdout and stderr
         let output_tx_clone = output_tx.clone();
@@ -125,7 +131,9 @@ impl MiseClient {
             )
         };
 
-        let _ = output_tx.send(final_message);
+        if output_tx.send(final_message).is_err() {
+            eprintln!("Warning: Failed to send task completion message");
+        }
 
         Ok(())
     }

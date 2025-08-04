@@ -12,7 +12,9 @@ impl App {
         tokio::spawn(async move {
             match client.list_tasks().await {
                 Ok(tasks) => {
-                    let _ = event_tx.send(AppEvent::TasksRefreshed(tasks));
+                    if event_tx.send(AppEvent::TasksRefreshed(tasks)).is_err() {
+                        eprintln!("Warning: Failed to send TasksRefreshed event");
+                    }
                 }
                 Err(e) => {
                     eprintln!("Failed to refresh tasks: {e}");
@@ -41,7 +43,9 @@ impl App {
                 if let Err(e) = client.run_task(&task_name, &[], output_tx).await {
                     eprintln!("Failed to run task: {e}");
                 }
-                let _ = event_tx.send(AppEvent::TaskCompleted);
+                if event_tx.send(AppEvent::TaskCompleted).is_err() {
+                    eprintln!("Warning: Failed to send TaskCompleted event");
+                }
             });
 
             self.running_task_handle = Some(handle);

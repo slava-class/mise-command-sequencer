@@ -105,7 +105,12 @@ impl App {
                         // Task completed successfully
                     }
                     Err(e) => {
-                        let _ = output_tx.send(format!("Task '{task_name}' failed: {e}"));
+                        if output_tx
+                            .send(format!("Task '{task_name}' failed: {e}"))
+                            .is_err()
+                        {
+                            eprintln!("Warning: Failed to send task failure message");
+                        }
                         all_success = false;
                         break;
                     }
@@ -113,11 +118,21 @@ impl App {
             }
 
             if all_success {
-                let _ = event_tx.send(AppEvent::Sequence(SequenceEvent::StepCompleted));
+                if event_tx
+                    .send(AppEvent::Sequence(SequenceEvent::StepCompleted))
+                    .is_err()
+                {
+                    eprintln!("Warning: Failed to send StepCompleted event");
+                }
             } else {
-                let _ = event_tx.send(AppEvent::Sequence(SequenceEvent::SequenceFailed(
-                    "One or more tasks failed".to_string(),
-                )));
+                if event_tx
+                    .send(AppEvent::Sequence(SequenceEvent::SequenceFailed(
+                        "One or more tasks failed".to_string(),
+                    )))
+                    .is_err()
+                {
+                    eprintln!("Warning: Failed to send SequenceFailed event");
+                }
             }
         });
 
@@ -209,7 +224,9 @@ impl App {
                 if let Err(e) = client.run_task(&task_name, &[], output_tx).await {
                     eprintln!("Failed to run task: {e}");
                 }
-                let _ = event_tx.send(AppEvent::TaskCompleted);
+                if event_tx.send(AppEvent::TaskCompleted).is_err() {
+                    eprintln!("Warning: Failed to send TaskCompleted event");
+                }
             });
 
             self.running_task_handle = Some(handle);
@@ -279,9 +296,9 @@ impl App {
                                 .filter_map(|v| v.as_str())
                                 .collect::<Vec<&str>>()
                                 .join(" ")
-                        },
+                        }
                         serde_json::Value::String(s) => s.clone(),
-                        _ => serde_json::to_string_pretty(run_config).unwrap_or_default()
+                        _ => serde_json::to_string_pretty(run_config).unwrap_or_default(),
                     };
                     self.task_output.push_back(run_string);
                 }
