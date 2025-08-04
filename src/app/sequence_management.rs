@@ -272,8 +272,18 @@ impl App {
 
                 if let Some(run_config) = &task_info.run {
                     self.task_output.push_back("Run configuration:".to_string());
-                    self.task_output
-                        .push_back(serde_json::to_string_pretty(run_config).unwrap_or_default());
+                    let run_string = match run_config {
+                        serde_json::Value::Array(arr) => {
+                            // Convert array of strings to joined string
+                            arr.iter()
+                                .filter_map(|v| v.as_str())
+                                .collect::<Vec<&str>>()
+                                .join(" ")
+                        },
+                        serde_json::Value::String(s) => s.clone(),
+                        _ => serde_json::to_string_pretty(run_config).unwrap_or_default()
+                    };
+                    self.task_output.push_back(run_string);
                 }
 
                 if let Some(depends) = &task_info.depends {
