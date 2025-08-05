@@ -144,12 +144,8 @@ impl App {
             // Generate a task name based on current timestamp
             let task_name = format!("sequence-{}", chrono::Utc::now().format("%Y%m%d-%H%M%S"));
 
-            // Use mise tasks add to create the task
-            // Use shell to execute the compound command
-            let add_result = tokio::process::Command::new("mise")
-                .args(["tasks", "add", &task_name, "--", "sh", "-c", &command])
-                .output()
-                .await;
+            // Add task directly to mise.toml using TOML parsing
+            let add_result = self.add_task_to_mise_toml(&task_name, &command).await;
 
             // Show feedback to user
             self.task_output.clear();
@@ -157,23 +153,17 @@ impl App {
             self.task_running = false;
 
             match add_result {
-                Ok(output) => {
-                    if output.status.success() {
-                        self.task_output
-                            .push_back(format!("✓ Created task '{task_name}' successfully!"));
-                        self.task_output.push_back(format!("Command: {command}"));
+                Ok(()) => {
+                    self.task_output
+                        .push_back(format!("✓ Created task '{task_name}' successfully!"));
+                    self.task_output.push_back(format!("Command: {command}"));
 
-                        // Refresh task list to show the new task
-                        self.refresh_tasks().await?;
-                    } else {
-                        let error_msg = String::from_utf8_lossy(&output.stderr);
-                        self.task_output
-                            .push_back(format!("✗ Failed to create task: {error_msg}"));
-                    }
+                    // Refresh task list to show the new task
+                    self.refresh_tasks().await?;
                 }
                 Err(e) => {
                     self.task_output
-                        .push_back(format!("✗ Error running mise tasks add: {e}"));
+                        .push_back(format!("✗ Error adding task to mise.toml: {e}"));
                 }
             }
         } else {
@@ -295,6 +285,39 @@ impl App {
                     .push_back(format!("Failed to get task info: {e}"));
             }
         }
+        Ok(())
+    }
+
+    async fn add_task_to_mise_toml(&self, task_name: &str, command: &str) -> Result<()> {
+        use std::fs;
+        use toml::Value;
+
+        // Read the current mise.toml file
+        let toml_path = "mise.toml";
+        let toml_content = fs::read_to_string(toml_path)
+            .map_err(|e| anyhow::anyhow!("Failed to read mise.toml: {}", e))?;
+
+        // Parse the TOML content
+        let mut toml_value: Value = toml::from_str(&toml_content)
+            .map_err(|e| anyhow::anyhow!("Failed to parse mise.toml: {}", e))?;
+
+        // Ensure the [tasks] table exists
+        let tasks_table = toml_value
+            .as_table_mut()
+            .and_then(|table| table.entry("tasks").or_insert_with(|| Value::Table(toml::Table::new())).as_table_mut())
+            .ok_or_else(|| anyhow::anyhow!("Could not access or create tasks table"))?;
+
+        // Add the new task
+        tasks_table.insert(task_name.to_string(), Value::String(command.to_string()));
+
+        // Serialize back to TOML string
+        let updated_toml = toml::to_string(&toml_value)
+            .map_err(|e| anyhow::anyhow!("Failed to serialize TOML: {}", e))?;
+
+        // Write back to file
+        fs::write(toml_path, updated_toml)
+            .map_err(|e| anyhow::anyhow!("Failed to write mise.toml: {}", e))?;
+
         Ok(())
     }
 }

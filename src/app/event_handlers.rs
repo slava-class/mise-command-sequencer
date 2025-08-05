@@ -224,7 +224,7 @@ impl App {
             }
             (AppState::SequenceBuilder, KeyCode::Char('x')) => self.run_current_task().await?,
             (AppState::SequenceBuilder, KeyCode::Char('e')) => self.edit_current_task().await?,
-            (AppState::SequenceBuilder, KeyCode::Char('d')) => {
+            (AppState::SequenceBuilder, KeyCode::Char('D')) => {
                 if let Some(task) = self.tasks.get(self.selected_task) {
                     let _ = self.event_tx.send(AppEvent::DeleteTask(task.name.clone()));
                 }
