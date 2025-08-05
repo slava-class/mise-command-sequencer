@@ -5,7 +5,7 @@ use super::App;
 use crate::models::{AppEvent, SequenceEvent};
 
 impl App {
-    pub fn handle_sequence_event(&mut self, event: SequenceEvent) -> Result<()> {
+    pub async fn handle_sequence_event(&mut self, event: SequenceEvent) -> Result<()> {
         match event {
             SequenceEvent::ToggleStep(task_name, step) => {
                 let current_enabled = self
@@ -18,8 +18,8 @@ impl App {
             SequenceEvent::RunSequence => {
                 self.start_sequence_execution()?;
             }
-            SequenceEvent::CopyAsTask => {
-                self.copy_sequence_as_task()?;
+            SequenceEvent::AddAsTask => {
+                self.add_sequence_as_task().await?;
             }
             SequenceEvent::ClearSequence => {
                 self.sequence_state.clear_all();
@@ -47,11 +47,11 @@ impl App {
         Ok(())
     }
 
-    pub fn toggle_current_task_step(&mut self, step: usize) -> Result<()> {
+    pub async fn toggle_current_task_step(&mut self, step: usize) -> Result<()> {
         if let Some(selected_task) = self.tasks.get(self.selected_task) {
             let task_name = selected_task.name.clone();
             let event = SequenceEvent::ToggleStep(task_name, step);
-            self.handle_sequence_event(event)?;
+            self.handle_sequence_event(event).await?;
         }
         Ok(())
     }
@@ -124,15 +124,13 @@ impl App {
                 {
                     eprintln!("Warning: Failed to send StepCompleted event");
                 }
-            } else {
-                if event_tx
-                    .send(AppEvent::Sequence(SequenceEvent::SequenceFailed(
-                        "One or more tasks failed".to_string(),
-                    )))
-                    .is_err()
-                {
-                    eprintln!("Warning: Failed to send SequenceFailed event");
-                }
+            } else if event_tx
+                .send(AppEvent::Sequence(SequenceEvent::SequenceFailed(
+                    "One or more tasks failed".to_string(),
+                )))
+                .is_err()
+            {
+                eprintln!("Warning: Failed to send SequenceFailed event");
             }
         });
 
@@ -141,60 +139,41 @@ impl App {
         Ok(())
     }
 
-    fn copy_sequence_as_task(&mut self) -> Result<()> {
+    async fn add_sequence_as_task(&mut self) -> Result<()> {
         if let Some(command) = self.sequence_state.generate_mise_task_command() {
-            let task_definition = format!("sequence = \"{command}\"");
+            // Generate a task name based on current timestamp
+            let task_name = format!("sequence-{}", chrono::Utc::now().format("%Y%m%d-%H%M%S"));
 
-            // Try to copy to clipboard using system command
-            let copy_result = if cfg!(target_os = "macos") {
-                std::process::Command::new("pbcopy")
-                    .stdin(std::process::Stdio::piped())
-                    .spawn()
-                    .and_then(|mut child| {
-                        use std::io::Write;
-                        if let Some(stdin) = child.stdin.as_mut() {
-                            stdin.write_all(task_definition.as_bytes())?;
-                        }
-                        child.wait()?;
-                        Ok(())
-                    })
-            } else if cfg!(target_os = "linux") {
-                std::process::Command::new("xclip")
-                    .args(["-selection", "clipboard"])
-                    .stdin(std::process::Stdio::piped())
-                    .spawn()
-                    .and_then(|mut child| {
-                        use std::io::Write;
-                        if let Some(stdin) = child.stdin.as_mut() {
-                            stdin.write_all(task_definition.as_bytes())?;
-                        }
-                        child.wait()?;
-                        Ok(())
-                    })
-            } else {
-                Err(std::io::Error::new(
-                    std::io::ErrorKind::Unsupported,
-                    "Clipboard not supported on this platform",
-                ))
-            };
+            // Use mise tasks add to create the task
+            // Use shell to execute the compound command
+            let add_result = tokio::process::Command::new("mise")
+                .args(["tasks", "add", &task_name, "--", "sh", "-c", &command])
+                .output()
+                .await;
 
             // Show feedback to user
             self.task_output.clear();
             self.show_output_pane = true;
             self.task_running = false;
 
-            match copy_result {
-                Ok(_) => {
-                    self.task_output
-                        .push_back("✓ Copied to clipboard:".to_string());
-                    self.task_output.push_back(task_definition);
+            match add_result {
+                Ok(output) => {
+                    if output.status.success() {
+                        self.task_output
+                            .push_back(format!("✓ Created task '{task_name}' successfully!"));
+                        self.task_output.push_back(format!("Command: {command}"));
+
+                        // Refresh task list to show the new task
+                        self.refresh_tasks().await?;
+                    } else {
+                        let error_msg = String::from_utf8_lossy(&output.stderr);
+                        self.task_output
+                            .push_back(format!("✗ Failed to create task: {error_msg}"));
+                    }
                 }
-                Err(_) => {
-                    self.task_output.push_back(
-                        "⚠ Failed to copy to clipboard, but here's the task definition:"
-                            .to_string(),
-                    );
-                    self.task_output.push_back(task_definition);
+                Err(e) => {
+                    self.task_output
+                        .push_back(format!("✗ Error running mise tasks add: {e}"));
                 }
             }
         } else {

@@ -59,6 +59,11 @@ pub fn draw_sequence_builder(app: &mut App, f: &mut Frame) {
     } else {
         draw_controls(f, chunks[1]);
     }
+
+    // Position cursor over hovered button to simulate cursor pointer
+    if let Some(hover_state) = &app.button_hover_state {
+        f.set_cursor_position((hover_state.col, hover_state.row));
+    }
 }
 
 fn draw_matrix_interface(app: &mut App, f: &mut Frame, area: Rect) {
@@ -250,7 +255,7 @@ fn draw_task_output(app: &mut App, f: &mut Frame, area: Rect) {
 fn draw_controls(f: &mut Frame, area: Rect) {
     let controls = Paragraph::new(vec![
         Line::from("↑/↓: Navigate | PgUp/PgDn/Mouse wheel: Scroll | 1/2/3: Toggle step | Enter: Run sequence"),
-        Line::from("y: Copy as task | x: Run task | e: Edit | Tab: Info | c: Clear | q: Quit"),
+        Line::from("a: Add as task | x: Run task | e: Edit | Tab: Info | c: Clear | q: Quit"),
     ])
     .block(
         Block::default()
@@ -354,13 +359,13 @@ fn create_sequence_controls_paragraph(app: &App) -> Paragraph {
     // Space between buttons
     spans.push(Span::raw(BUTTON_SPACING));
 
-    // Copy as task button
-    let copy_as_task_style = if matches!(hover_button, Some(SequenceButton::CopyAsTask)) {
+    // Add as task button
+    let add_as_task_style = if matches!(hover_button, Some(SequenceButton::AddAsTask)) {
         Style::default().bg(Color::Cyan).fg(Color::Black)
     } else {
         Style::default().fg(Color::Blue)
     };
-    spans.push(Span::styled(COPY_AS_TASK_BUTTON_TEXT, copy_as_task_style));
+    spans.push(Span::styled(ADD_AS_TASK_BUTTON_TEXT, add_as_task_style));
 
     // Space between buttons
     spans.push(Span::raw(BUTTON_SPACING));
@@ -389,7 +394,7 @@ fn render_sequence_controls_in_title(app: &App, f: &mut Frame, table_area: Rect)
     // Account for border and padding: left border (1) + space (1) + title + space (1)
     let title_offset = 3 + title_text.len();
     let controls_text =
-        format!("{RUN_SEQUENCE_BUTTON_TEXT} {COPY_AS_TASK_BUTTON_TEXT} {CLEAR_BUTTON_TEXT}");
+        format!("{RUN_SEQUENCE_BUTTON_TEXT} {ADD_AS_TASK_BUTTON_TEXT} {CLEAR_BUTTON_TEXT}");
     let controls_width = controls_text.len();
 
     // Position controls to the right, accounting for right border (1)

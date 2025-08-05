@@ -121,7 +121,7 @@ impl SequenceState {
 pub enum SequenceEvent {
     ToggleStep(String, usize),
     RunSequence,
-    CopyAsTask,
+    AddAsTask,
     ClearSequence,
     StepCompleted,
     SequenceCompleted,

@@ -12,7 +12,7 @@ pub enum ActionButton {
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub enum SequenceButton {
     RunSequence,
-    CopyAsTask,
+    AddAsTask,
     Clear,
 }
 
@@ -68,7 +68,7 @@ impl ActionButtonLayout {
 
 pub struct SequenceButtonLayout {
     pub run_sequence_range: (u16, u16),
-    pub copy_as_task_range: (u16, u16),
+    pub add_as_task_range: (u16, u16),
     pub clear_range: (u16, u16),
 }
 
@@ -77,15 +77,15 @@ impl SequenceButtonLayout {
         let run_sequence_start = 0;
         let run_sequence_end = run_sequence_start + RUN_SEQUENCE_BUTTON_TEXT.len() - 1;
 
-        let copy_as_task_start = run_sequence_end + 1 + BUTTON_SPACING.len();
-        let copy_as_task_end = copy_as_task_start + COPY_AS_TASK_BUTTON_TEXT.len() - 1;
+        let add_as_task_start = run_sequence_end + 1 + BUTTON_SPACING.len();
+        let add_as_task_end = add_as_task_start + ADD_AS_TASK_BUTTON_TEXT.len() - 1;
 
-        let clear_start = copy_as_task_end + 1 + BUTTON_SPACING.len();
+        let clear_start = add_as_task_end + 1 + BUTTON_SPACING.len();
         let clear_end = clear_start + CLEAR_BUTTON_TEXT.len() - 1;
 
         Self {
             run_sequence_range: (run_sequence_start as u16, run_sequence_end as u16),
-            copy_as_task_range: (copy_as_task_start as u16, copy_as_task_end as u16),
+            add_as_task_range: (add_as_task_start as u16, add_as_task_end as u16),
             clear_range: (clear_start as u16, clear_end as u16),
         }
     }
@@ -93,8 +93,8 @@ impl SequenceButtonLayout {
     pub fn get_button_at_position(&self, relative_col: u16) -> Option<SequenceButton> {
         if (self.run_sequence_range.0..=self.run_sequence_range.1).contains(&relative_col) {
             Some(SequenceButton::RunSequence)
-        } else if (self.copy_as_task_range.0..=self.copy_as_task_range.1).contains(&relative_col) {
-            Some(SequenceButton::CopyAsTask)
+        } else if (self.add_as_task_range.0..=self.add_as_task_range.1).contains(&relative_col) {
+            Some(SequenceButton::AddAsTask)
         } else if (self.clear_range.0..=self.clear_range.1).contains(&relative_col) {
             Some(SequenceButton::Clear)
         } else {
@@ -207,10 +207,10 @@ mod tests {
         let layout = SequenceButtonLayout::new(50);
 
         let expected_run_sequence_end = RUN_SEQUENCE_BUTTON_TEXT.len() - 1;
-        let expected_copy_as_task_start = expected_run_sequence_end + 1 + BUTTON_SPACING.len();
-        let expected_copy_as_task_end =
-            expected_copy_as_task_start + COPY_AS_TASK_BUTTON_TEXT.len() - 1;
-        let expected_clear_start = expected_copy_as_task_end + 1 + BUTTON_SPACING.len();
+        let expected_add_as_task_start = expected_run_sequence_end + 1 + BUTTON_SPACING.len();
+        let expected_add_as_task_end =
+            expected_add_as_task_start + ADD_AS_TASK_BUTTON_TEXT.len() - 1;
+        let expected_clear_start = expected_add_as_task_end + 1 + BUTTON_SPACING.len();
         let expected_clear_end = expected_clear_start + CLEAR_BUTTON_TEXT.len() - 1;
 
         assert_eq!(
@@ -218,10 +218,10 @@ mod tests {
             (0, expected_run_sequence_end as u16)
         );
         assert_eq!(
-            layout.copy_as_task_range,
+            layout.add_as_task_range,
             (
-                expected_copy_as_task_start as u16,
-                expected_copy_as_task_end as u16
+                expected_add_as_task_start as u16,
+                expected_add_as_task_end as u16
             )
         );
         assert_eq!(
@@ -248,38 +248,38 @@ mod tests {
             Some(SequenceButton::RunSequence)
         );
 
-        // Test copy as task button range (15-28)
+        // Test add as task button range (15-27)
         assert_eq!(
             layout.get_button_at_position(15),
-            Some(SequenceButton::CopyAsTask)
+            Some(SequenceButton::AddAsTask)
         );
         assert_eq!(
             layout.get_button_at_position(21),
-            Some(SequenceButton::CopyAsTask)
+            Some(SequenceButton::AddAsTask)
         );
         assert_eq!(
-            layout.get_button_at_position(28),
-            Some(SequenceButton::CopyAsTask)
+            layout.get_button_at_position(27),
+            Some(SequenceButton::AddAsTask)
         );
 
-        // Test clear button range (30-36)
+        // Test clear button range (29-35)
         assert_eq!(
-            layout.get_button_at_position(30),
+            layout.get_button_at_position(29),
             Some(SequenceButton::Clear)
         );
         assert_eq!(
-            layout.get_button_at_position(33),
+            layout.get_button_at_position(32),
             Some(SequenceButton::Clear)
         );
         assert_eq!(
-            layout.get_button_at_position(36),
+            layout.get_button_at_position(35),
             Some(SequenceButton::Clear)
         );
 
         // Test positions outside ranges
-        assert_eq!(layout.get_button_at_position(14), None); // Between run sequence and copy
-        assert_eq!(layout.get_button_at_position(29), None); // Between copy and clear
-        assert_eq!(layout.get_button_at_position(37), None); // After clear
+        assert_eq!(layout.get_button_at_position(14), None); // Between run sequence and add
+        assert_eq!(layout.get_button_at_position(28), None); // Between add and clear
+        assert_eq!(layout.get_button_at_position(36), None); // After clear
     }
 
     #[test]

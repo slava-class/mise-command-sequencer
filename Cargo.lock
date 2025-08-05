@@ -302,6 +302,7 @@ dependencies = [
  "iana-time-zone",
  "js-sys",
  "num-traits",
+ "serde",
  "wasm-bindgen",
  "windows-link",
 ]
@@ -1272,6 +1273,7 @@ dependencies = [
  "ansi-to-tui",
  "anyhow",
  "cargo-tarpaulin",
+ "chrono",
  "ratatui",
  "serde",
  "serde_json",

@@ -75,7 +75,7 @@ impl App {
                 // Handle periodic updates if needed
             }
             AppEvent::Sequence(sequence_event) => {
-                self.handle_sequence_event(sequence_event)?;
+                self.handle_sequence_event(sequence_event).await?;
             }
         }
         Ok(())
@@ -146,9 +146,15 @@ impl App {
                 self.scroll_up(visible_height);
                 // Don't change selected task - let it go out of view if needed
             }
-            (AppState::SequenceBuilder, KeyCode::Char('1')) => self.toggle_current_task_step(0)?,
-            (AppState::SequenceBuilder, KeyCode::Char('2')) => self.toggle_current_task_step(1)?,
-            (AppState::SequenceBuilder, KeyCode::Char('3')) => self.toggle_current_task_step(2)?,
+            (AppState::SequenceBuilder, KeyCode::Char('1')) => {
+                self.toggle_current_task_step(0).await?
+            }
+            (AppState::SequenceBuilder, KeyCode::Char('2')) => {
+                self.toggle_current_task_step(1).await?
+            }
+            (AppState::SequenceBuilder, KeyCode::Char('3')) => {
+                self.toggle_current_task_step(2).await?
+            }
             (AppState::SequenceBuilder, KeyCode::Enter) => {
                 let _ = self
                     .event_tx
@@ -159,10 +165,10 @@ impl App {
                     .event_tx
                     .send(AppEvent::Sequence(SequenceEvent::ClearSequence));
             }
-            (AppState::SequenceBuilder, KeyCode::Char('y')) => {
+            (AppState::SequenceBuilder, KeyCode::Char('a')) => {
                 let _ = self
                     .event_tx
-                    .send(AppEvent::Sequence(SequenceEvent::CopyAsTask));
+                    .send(AppEvent::Sequence(SequenceEvent::AddAsTask));
             }
             (AppState::SequenceBuilder, KeyCode::Char('x')) => self.run_current_task().await?,
             (AppState::SequenceBuilder, KeyCode::Char('e')) => self.edit_current_task().await?,
@@ -263,7 +269,7 @@ impl App {
                     if column_index < table_layout.column_rects.len() {
                         let column_rect = table_layout.column_rects[column_index];
                         if col >= column_rect.x && col < column_rect.x + column_rect.width {
-                            self.toggle_current_task_step(step)?;
+                            self.toggle_current_task_step(step).await?;
                             return Ok(());
                         }
                     }
@@ -302,10 +308,10 @@ impl App {
                                     .event_tx
                                     .send(AppEvent::Sequence(SequenceEvent::RunSequence));
                             }
-                            crate::ui::button_layout::SequenceButton::CopyAsTask => {
+                            crate::ui::button_layout::SequenceButton::AddAsTask => {
                                 let _ = self
                                     .event_tx
-                                    .send(AppEvent::Sequence(SequenceEvent::CopyAsTask));
+                                    .send(AppEvent::Sequence(SequenceEvent::AddAsTask));
                             }
                             crate::ui::button_layout::SequenceButton::Clear => {
                                 let _ = self
@@ -406,7 +412,7 @@ impl App {
         // Pre-calculate constants to avoid repeated allocations
         static CONTROLS_TEXT_LEN: std::sync::OnceLock<usize> = std::sync::OnceLock::new();
         let controls_width = *CONTROLS_TEXT_LEN.get_or_init(|| {
-            format!("{RUN_SEQUENCE_BUTTON_TEXT} {COPY_AS_TASK_BUTTON_TEXT} {CLEAR_BUTTON_TEXT}")
+            format!("{RUN_SEQUENCE_BUTTON_TEXT} {ADD_AS_TASK_BUTTON_TEXT} {CLEAR_BUTTON_TEXT}")
                 .len()
         });
 
