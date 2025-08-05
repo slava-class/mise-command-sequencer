@@ -304,7 +304,12 @@ impl App {
         // Ensure the [tasks] table exists
         let tasks_table = toml_value
             .as_table_mut()
-            .and_then(|table| table.entry("tasks").or_insert_with(|| Value::Table(toml::Table::new())).as_table_mut())
+            .and_then(|table| {
+                table
+                    .entry("tasks")
+                    .or_insert_with(|| Value::Table(toml::Table::new()))
+                    .as_table_mut()
+            })
             .ok_or_else(|| anyhow::anyhow!("Could not access or create tasks table"))?;
 
         // Add the new task

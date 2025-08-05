@@ -42,9 +42,10 @@ impl App {
                     }
                 }
 
-                // Auto-scroll to bottom if we're at or near the bottom
+                // Auto-scroll to bottom if follow mode is enabled and we're at or near the bottom
                 if self.show_output_pane
                     && self.task_running
+                    && self.output_follow_mode
                     && self.current_output_visible_height > 0
                 {
                     let visible_height = self.current_output_visible_height;
@@ -177,6 +178,15 @@ impl App {
             }
             (AppState::SequenceBuilder, KeyCode::Char('d')) if self.show_output_pane => {
                 self.scroll_output_half_page_down();
+            }
+            (AppState::SequenceBuilder, KeyCode::Char('g')) if self.show_output_pane => {
+                self.scroll_output_to_top();
+            }
+            (AppState::SequenceBuilder, KeyCode::Char('G')) if self.show_output_pane => {
+                self.scroll_output_to_bottom();
+            }
+            (AppState::SequenceBuilder, KeyCode::Char('F')) if self.show_output_pane => {
+                self.toggle_output_follow_mode();
             }
 
             // Sequence Builder controls

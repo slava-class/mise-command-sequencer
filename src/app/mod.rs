@@ -34,6 +34,7 @@ pub struct App {
     pub current_visible_height: usize,
     pub output_scroll_offset: usize,
     pub current_output_visible_height: usize,
+    pub output_follow_mode: bool,
     pub pending_delete_task: Option<String>,
     pub delete_dialog_area: Option<Rect>,
 }
@@ -61,6 +62,7 @@ impl App {
             current_visible_height: 0,
             output_scroll_offset: 0,
             current_output_visible_height: 0,
+            output_follow_mode: true,
             pending_delete_task: None,
             delete_dialog_area: None,
         }
@@ -160,6 +162,7 @@ impl App {
         self.current_visible_height = 0;
         self.output_scroll_offset = 0;
         self.current_output_visible_height = 0;
+        self.output_follow_mode = true;
     }
 
     pub fn scroll_output_up(&mut self, lines: usize) {
@@ -192,6 +195,22 @@ impl App {
             self.output_scroll_offset = self.task_output.len() - visible_height;
         } else {
             self.output_scroll_offset = 0;
+        }
+    }
+
+    pub fn scroll_output_to_top(&mut self) {
+        self.output_scroll_offset = 0;
+    }
+
+    pub fn scroll_output_to_bottom(&mut self) {
+        self.auto_scroll_output_to_bottom();
+    }
+
+    pub fn toggle_output_follow_mode(&mut self) {
+        self.output_follow_mode = !self.output_follow_mode;
+        // If we're enabling follow mode, immediately scroll to bottom
+        if self.output_follow_mode {
+            self.auto_scroll_output_to_bottom();
         }
     }
 }

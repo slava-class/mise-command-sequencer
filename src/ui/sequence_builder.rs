@@ -260,7 +260,7 @@ fn draw_task_output(app: &mut App, f: &mut Frame, area: Rect) {
 fn draw_controls(f: &mut Frame, area: Rect) {
     let controls = Paragraph::new(vec![
         Line::from("↑/↓: Navigate | PgUp/PgDn/Mouse wheel: Scroll | 1/2/3: Toggle step | Enter: Run sequence"),
-        Line::from("a: Add as task | x: Run task | e: Edit | D: Delete | Tab: Info | c: Clear | q: Quit"),
+        Line::from("a: Add as task | x: Run task | e: Edit | D: Delete | Tab: Info | c: Clear | q: Quit | g/G/F: Output scroll"),
     ])
     .block(
         Block::default()
