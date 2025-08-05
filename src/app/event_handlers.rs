@@ -6,7 +6,8 @@ use super::App;
 use crate::models::app_event::ScrollDirection;
 use crate::models::{AppEvent, AppState, SequenceEvent};
 use crate::ui::button_layout::{
-    ActionButton, ActionButtonLayout, ButtonHoverState, ButtonType, SequenceButtonLayout,
+    get_dialog_button_at_position, ActionButton, ActionButtonLayout, ButtonHoverState, ButtonType,
+    DialogButton, SequenceButtonLayout,
 };
 use crate::ui::constants::*;
 
@@ -77,6 +78,10 @@ impl App {
             AppEvent::Sequence(sequence_event) => {
                 self.handle_sequence_event(sequence_event).await?;
             }
+            AppEvent::DeleteTask(task_name) => {
+                // Store the task name for confirmation
+                self.pending_delete_task = Some(task_name);
+            }
         }
         Ok(())
     }
@@ -87,6 +92,53 @@ impl App {
             modifiers,
             ..
         } = key_event;
+
+        // Handle delete confirmation first
+        if let Some(ref task_name) = self.pending_delete_task.clone() {
+            match key {
+                KeyCode::Char('y') | KeyCode::Char('Y') => {
+                    // Confirm deletion
+                    let task_name = task_name.clone();
+                    self.pending_delete_task = None;
+
+                    // Perform the deletion
+                    match self.client.delete_task(&task_name).await {
+                        Ok(()) => {
+                            // Remove from sequence state if it exists
+                            self.sequence_state.remove_task(&task_name);
+
+                            // Refresh task list
+                            self.refresh_tasks().await?;
+
+                            // Add success message to output
+                            self.task_output.push_back(format!("Task '{task_name}' deleted successfully. Remember to keep your mise tasks under version control."));
+                            self.show_output_pane = true;
+                        }
+                        Err(e) => {
+                            // Add error message to output
+                            self.task_output
+                                .push_back(format!("Failed to delete task '{task_name}': {e}"));
+                            self.show_output_pane = true;
+                        }
+                    }
+                    self.delete_dialog_area = None;
+                    return Ok(());
+                }
+                KeyCode::Char('n') | KeyCode::Char('N') | KeyCode::Esc => {
+                    // Cancel deletion explicitly
+                    self.pending_delete_task = None;
+                    self.delete_dialog_area = None;
+                    return Ok(());
+                }
+                _ => {
+                    // Cancel deletion for any other key
+                    self.pending_delete_task = None;
+                    self.delete_dialog_area = None;
+                    return Ok(());
+                }
+            }
+        }
+
         match (&self.state, key) {
             (_, KeyCode::Char('q')) => self.should_quit = true,
             (_, KeyCode::Char('r')) => self.refresh_tasks().await?,
@@ -172,6 +224,11 @@ impl App {
             }
             (AppState::SequenceBuilder, KeyCode::Char('x')) => self.run_current_task().await?,
             (AppState::SequenceBuilder, KeyCode::Char('e')) => self.edit_current_task().await?,
+            (AppState::SequenceBuilder, KeyCode::Char('d')) => {
+                if let Some(task) = self.tasks.get(self.selected_task) {
+                    let _ = self.event_tx.send(AppEvent::DeleteTask(task.name.clone()));
+                }
+            }
             (AppState::SequenceBuilder, KeyCode::Tab) => self.show_current_task_content().await?,
             (AppState::SequenceBuilder, KeyCode::Esc | KeyCode::Char('b')) => {
                 if self.show_output_pane && !self.task_running {
@@ -240,6 +297,45 @@ impl App {
     }
 
     async fn handle_sequence_builder_click(&mut self, row: u16, col: u16) -> Result<()> {
+        // Handle dialog button clicks first if there's a pending delete
+        if self.pending_delete_task.is_some() {
+            if let Some(dialog_area) = self.delete_dialog_area {
+                if let Some(button) = get_dialog_button_at_position(dialog_area, row, col) {
+                    match button {
+                        DialogButton::Delete => {
+                            // Trigger delete confirmation (same as pressing Y)
+                            if let Some(task_name) = self.pending_delete_task.take() {
+                                match self.client.delete_task(&task_name).await {
+                                    Ok(()) => {
+                                        self.sequence_state.remove_task(&task_name);
+                                        self.refresh_tasks().await?;
+                                        self.task_output.push_back(format!("Task '{task_name}' deleted successfully. Remember to keep your mise tasks under version control."));
+                                        self.show_output_pane = true;
+                                    }
+                                    Err(e) => {
+                                        self.task_output.push_back(format!(
+                                            "Failed to delete task '{task_name}': {e}"
+                                        ));
+                                        self.show_output_pane = true;
+                                    }
+                                }
+                            }
+                            self.delete_dialog_area = None;
+                            return Ok(());
+                        }
+                        DialogButton::Cancel => {
+                            // Cancel delete (same as pressing N/ESC)
+                            self.pending_delete_task = None;
+                            self.delete_dialog_area = None;
+                            return Ok(());
+                        }
+                    }
+                }
+            }
+            // If there's a pending delete but click is outside dialog, ignore the click
+            return Ok(());
+        }
+
         // Get the stored table layout for accurate column detection
         let Some(table_layout) = &self.table_layout else {
             return Ok(());
@@ -286,6 +382,13 @@ impl App {
                                 ActionButton::Run => self.run_current_task().await?,
                                 ActionButton::Cat => self.show_current_task_content().await?,
                                 ActionButton::Edit => self.edit_current_task().await?,
+                                ActionButton::Delete => {
+                                    if let Some(task) = self.tasks.get(self.selected_task) {
+                                        let _ = self
+                                            .event_tx
+                                            .send(AppEvent::DeleteTask(task.name.clone()));
+                                    }
+                                }
                             }
                         }
                     }
@@ -340,7 +443,24 @@ impl App {
     }
 
     fn handle_sequence_builder_hover(&mut self, row: u16, col: u16) -> Result<()> {
-        // Early return if no table layout
+        let mut new_hover_state = None;
+
+        // Handle dialog button hover first if there's a pending delete
+        if self.pending_delete_task.is_some() {
+            if let Some(dialog_area) = self.delete_dialog_area {
+                if let Some(button) = get_dialog_button_at_position(dialog_area, row, col) {
+                    new_hover_state =
+                        Some(ButtonHoverState::new(ButtonType::Dialog(button), row, col));
+                }
+            }
+            // Only update hover state if it actually changed
+            if self.button_hover_state != new_hover_state {
+                self.button_hover_state = new_hover_state;
+            }
+            return Ok(());
+        }
+
+        // Early return if no table layout for regular UI
         let Some(table_layout) = &self.table_layout else {
             if self.button_hover_state.is_some() {
                 self.button_hover_state = None;
@@ -349,7 +469,6 @@ impl App {
         };
 
         let table_start_row = table_layout.table_area.y;
-        let mut new_hover_state = None;
 
         // Check for sequence button hover in the title area
         if row == table_start_row {

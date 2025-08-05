@@ -1,15 +1,14 @@
+[tasks]
+check = "trunk check --all"
+check_green = "mise run fmt && cargo check && cargo build && mise run check && mise run coverage"
+coverage = "cargo tarpaulin --config tarpaulin.toml"
+coverage-watch = "cargo watch -x 'tarpaulin --config tarpaulin.toml'"
+fmt = "trunk fmt --all"
+repomix = "bunx repomix --copy"
+
+[tasks.sequence-20250805-145205]
+run = "sh -c 'mise run repomix && mise run fmt'"
+
 [tools]
 rust = "latest"
 trunk = "latest"
-
-
-[tasks]
-fmt = "trunk fmt --all"
-check = "trunk check --all"
-repomix = "bunx repomix --copy"
-
-# Coverage tasks
-coverage = "cargo tarpaulin --config tarpaulin.toml"
-coverage-watch = "cargo watch -x 'tarpaulin --config tarpaulin.toml'"
-
-check_green = "mise run fmt && cargo check && cargo build && mise run check && mise run coverage"

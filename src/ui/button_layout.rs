@@ -7,6 +7,7 @@ pub enum ActionButton {
     Run,
     Cat,
     Edit,
+    Delete,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq)]
@@ -17,18 +18,26 @@ pub enum SequenceButton {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq)]
+pub enum DialogButton {
+    Delete,
+    Cancel,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq)]
 pub enum ButtonType {
     Action {
         button: ActionButton,
         task_index: usize,
     },
     Sequence(SequenceButton),
+    Dialog(DialogButton),
 }
 
 pub struct ActionButtonLayout {
     pub run_range: (u16, u16), // (start_col, end_col)
     pub cat_range: (u16, u16),
     pub edit_range: (u16, u16),
+    pub delete_range: (u16, u16),
 }
 
 impl ActionButtonLayout {
@@ -46,10 +55,14 @@ impl ActionButtonLayout {
         let edit_start = cat_end + 1 + BUTTON_SPACING.len();
         let edit_end = edit_start + EDIT_BUTTON_TEXT.len() - 1;
 
+        let delete_start = edit_end + 1 + BUTTON_SPACING.len();
+        let delete_end = delete_start + DELETE_BUTTON_TEXT.len() - 1;
+
         Self {
             run_range: (run_start as u16, run_end as u16),
             cat_range: (cat_start as u16, cat_end as u16),
             edit_range: (edit_start as u16, edit_end as u16),
+            delete_range: (delete_start as u16, delete_end as u16),
         }
     }
 
@@ -60,6 +73,8 @@ impl ActionButtonLayout {
             Some(ActionButton::Cat)
         } else if (self.edit_range.0..=self.edit_range.1).contains(&relative_col) {
             Some(ActionButton::Edit)
+        } else if (self.delete_range.0..=self.delete_range.1).contains(&relative_col) {
+            Some(ActionButton::Delete)
         } else {
             None
         }
@@ -100,6 +115,55 @@ impl SequenceButtonLayout {
         } else {
             None
         }
+    }
+}
+
+pub fn get_dialog_button_at_position(
+    dialog_area: Rect,
+    click_row: u16,
+    click_col: u16,
+) -> Option<DialogButton> {
+    use crate::ui::constants::{CANCEL_DIALOG_BUTTON_TEXT, DELETE_DIALOG_BUTTON_TEXT};
+
+    // Check if click is within dialog area
+    if click_row < dialog_area.y
+        || click_row >= dialog_area.y + dialog_area.height
+        || click_col < dialog_area.x
+        || click_col >= dialog_area.x + dialog_area.width
+    {
+        return None;
+    }
+
+    // The buttons are on the last content line of the dialog (accounting for borders)
+    let button_row = dialog_area.y + dialog_area.height - 2; // -2 for border and button line
+    if click_row != button_row {
+        return None;
+    }
+
+    // Button positions relative to dialog start
+    // [Delete]     [Cancel]
+    // Buttons are centered in the dialog with some padding
+    let content_width = dialog_area.width.saturating_sub(4); // Account for borders
+    let delete_button_len = DELETE_DIALOG_BUTTON_TEXT.len() as u16;
+    let cancel_button_len = CANCEL_DIALOG_BUTTON_TEXT.len() as u16;
+    let gap = 5; // Space between buttons
+    let total_buttons_width = delete_button_len + gap + cancel_button_len;
+
+    // Center the buttons within the dialog
+    let buttons_start_offset = (content_width.saturating_sub(total_buttons_width)) / 2;
+    let content_start = dialog_area.x + 2; // Account for border
+
+    let delete_button_start = content_start + buttons_start_offset + 1; // +1 to align with actual rendering
+    let delete_button_end = delete_button_start + delete_button_len;
+    let cancel_button_start = delete_button_end + gap;
+    let cancel_button_end = cancel_button_start + cancel_button_len;
+
+    if click_col >= delete_button_start && click_col < delete_button_end {
+        Some(DialogButton::Delete)
+    } else if click_col >= cancel_button_start && click_col < cancel_button_end {
+        Some(DialogButton::Cancel)
+    } else {
+        None
     }
 }
 
@@ -307,11 +371,149 @@ mod tests {
         assert_ne!(ActionButton::Run, ActionButton::Cat);
         assert_ne!(ActionButton::Run, ActionButton::Edit);
         assert_ne!(ActionButton::Cat, ActionButton::Edit);
+        assert_ne!(ActionButton::Delete, ActionButton::Run);
+        assert_ne!(ActionButton::Delete, ActionButton::Cat);
+        assert_ne!(ActionButton::Delete, ActionButton::Edit);
     }
 
     #[test]
     fn test_sequence_button_enum_variants() {
         // Test that all SequenceButton variants are different
         assert_ne!(SequenceButton::RunSequence, SequenceButton::Clear);
+    }
+
+    #[test]
+    fn test_dialog_button_enum_variants() {
+        // Test that all DialogButton variants are different
+        assert_ne!(DialogButton::Delete, DialogButton::Cancel);
+    }
+
+    #[test]
+    fn test_get_dialog_button_at_position_delete() {
+        let dialog_area = Rect {
+            x: 10,
+            y: 5,
+            width: 40,
+            height: 11,
+        };
+
+        // Test click on delete button
+        // Button row is at y + height - 2 = 5 + 11 - 2 = 14
+        let button_row = 14;
+
+        // Calculate expected delete button position
+        // content_start = 10 + 2 = 12
+        // content_width = 40 - 4 = 36
+        // delete_button_len = "[Delete]".len() = 8
+        // cancel_button_len = "[Cancel]".len() = 8
+        // gap = 5
+        // total_buttons_width = 8 + 5 + 8 = 21
+        // buttons_start_offset = (36 - 21) / 2 = 7
+        // delete_button_start = 12 + 7 + 1 = 20
+        let delete_button_start = 20;
+        let delete_button_end = delete_button_start + 8; // 28
+
+        // Test clicks within delete button range
+        assert_eq!(
+            get_dialog_button_at_position(dialog_area, button_row, delete_button_start),
+            Some(DialogButton::Delete)
+        );
+        assert_eq!(
+            get_dialog_button_at_position(dialog_area, button_row, delete_button_start + 3),
+            Some(DialogButton::Delete)
+        );
+        assert_eq!(
+            get_dialog_button_at_position(dialog_area, button_row, delete_button_end - 1),
+            Some(DialogButton::Delete)
+        );
+    }
+
+    #[test]
+    fn test_get_dialog_button_at_position_cancel() {
+        let dialog_area = Rect {
+            x: 10,
+            y: 5,
+            width: 40,
+            height: 11,
+        };
+
+        let button_row = 14; // y + height - 2
+
+        // Calculate expected cancel button position
+        // From previous test: delete_button_end = 28, gap = 5
+        // cancel_button_start = 28 + 5 = 33
+        let cancel_button_start = 33;
+        let cancel_button_end = cancel_button_start + 8; // 41
+
+        // Test clicks within cancel button range
+        assert_eq!(
+            get_dialog_button_at_position(dialog_area, button_row, cancel_button_start),
+            Some(DialogButton::Cancel)
+        );
+        assert_eq!(
+            get_dialog_button_at_position(dialog_area, button_row, cancel_button_start + 3),
+            Some(DialogButton::Cancel)
+        );
+        assert_eq!(
+            get_dialog_button_at_position(dialog_area, button_row, cancel_button_end - 1),
+            Some(DialogButton::Cancel)
+        );
+    }
+
+    #[test]
+    fn test_get_dialog_button_at_position_outside_dialog() {
+        let dialog_area = Rect {
+            x: 10,
+            y: 5,
+            width: 40,
+            height: 11,
+        };
+
+        // Test clicks outside dialog area
+        assert_eq!(get_dialog_button_at_position(dialog_area, 0, 20), None); // Above dialog
+        assert_eq!(get_dialog_button_at_position(dialog_area, 20, 20), None); // Below dialog
+        assert_eq!(get_dialog_button_at_position(dialog_area, 10, 5), None); // Left of dialog
+        assert_eq!(get_dialog_button_at_position(dialog_area, 10, 55), None); // Right of dialog
+    }
+
+    #[test]
+    fn test_get_dialog_button_at_position_wrong_row() {
+        let dialog_area = Rect {
+            x: 10,
+            y: 5,
+            width: 40,
+            height: 11,
+        };
+
+        // Test clicks on wrong rows within dialog
+        assert_eq!(get_dialog_button_at_position(dialog_area, 6, 25), None); // Wrong row
+        assert_eq!(get_dialog_button_at_position(dialog_area, 13, 25), None); // Wrong row
+        assert_eq!(get_dialog_button_at_position(dialog_area, 15, 25), None); // Wrong row
+    }
+
+    #[test]
+    fn test_get_dialog_button_at_position_between_buttons() {
+        let dialog_area = Rect {
+            x: 10,
+            y: 5,
+            width: 40,
+            height: 11,
+        };
+
+        let button_row = 14;
+
+        // Test clicks in the gap between buttons (around column 28-33)
+        assert_eq!(
+            get_dialog_button_at_position(dialog_area, button_row, 28),
+            None
+        );
+        assert_eq!(
+            get_dialog_button_at_position(dialog_area, button_row, 30),
+            None
+        );
+        assert_eq!(
+            get_dialog_button_at_position(dialog_area, button_row, 32),
+            None
+        );
     }
 }

@@ -4,6 +4,7 @@
 pub const RUN_BUTTON_TEXT: &str = "[run]";
 pub const CAT_BUTTON_TEXT: &str = "[cat]";
 pub const EDIT_BUTTON_TEXT: &str = "[edit]";
+pub const DELETE_BUTTON_TEXT: &str = "[del]";
 
 // Sequence button texts
 pub const RUN_SEQUENCE_BUTTON_TEXT: &str = "[Run sequence]";
@@ -15,6 +16,23 @@ pub const BUTTON_SPACING: &str = " ";
 
 // Application title
 pub const APP_TITLE: &str = "Mise Command Sequencer";
+
+// Dialog button texts
+pub const DELETE_DIALOG_BUTTON_TEXT: &str = "[Delete]";
+pub const CANCEL_DIALOG_BUTTON_TEXT: &str = "[Cancel]";
+
+// Dialog messages
+pub const DELETE_DIALOG_TITLE: &str = " Confirm Deletion ";
+pub const DELETE_DIALOG_QUESTION_PREFIX: &str = "Delete task ";
+pub const DELETE_DIALOG_QUESTION_SUFFIX: &str = "?";
+pub const DELETE_DIALOG_WARNING: &str = "This cannot be undone.";
+pub const DELETE_DIALOG_VERSION_CONTROL_TIP: &str = "Keep your tasks under version control.";
+pub const DELETE_DIALOG_INSTRUCTIONS: &str = "Press ";
+pub const DELETE_DIALOG_DELETE_KEY: &str = "Y";
+pub const DELETE_DIALOG_DELETE_ACTION: &str = " to delete or ";
+pub const DELETE_DIALOG_CANCEL_KEYS: &str = "N";
+pub const DELETE_DIALOG_CANCEL_KEYS_ALT: &str = "ESC";
+pub const DELETE_DIALOG_CANCEL_ACTION: &str = " to cancel";
 
 // Other UI texts
 pub const TASK_OUTPUT_TITLE: &str = "Task Output";

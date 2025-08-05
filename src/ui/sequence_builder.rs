@@ -2,12 +2,12 @@ use ratatui::{
     layout::{Constraint, Direction, Layout, Rect},
     style::{Color, Modifier, Style},
     text::{Line, Span},
-    widgets::{Block, Borders, Cell, Paragraph, Row, Table},
+    widgets::{Block, Borders, Cell, Clear, Paragraph, Row, Table},
     Frame,
 };
 
 use crate::app::App;
-use crate::ui::button_layout::{ActionButton, ButtonType, SequenceButton};
+use crate::ui::button_layout::{ActionButton, ButtonType, DialogButton, SequenceButton};
 use crate::ui::constants::*;
 
 pub struct TableLayout {
@@ -63,6 +63,11 @@ pub fn draw_sequence_builder(app: &mut App, f: &mut Frame) {
     // Position cursor over hovered button to simulate cursor pointer
     if let Some(hover_state) = &app.button_hover_state {
         f.set_cursor_position((hover_state.col, hover_state.row));
+    }
+
+    // Draw confirmation dialog if there's a pending delete
+    if let Some(task_name) = app.pending_delete_task.clone() {
+        draw_delete_confirmation_dialog(f, app, &task_name);
     }
 }
 
@@ -255,7 +260,7 @@ fn draw_task_output(app: &mut App, f: &mut Frame, area: Rect) {
 fn draw_controls(f: &mut Frame, area: Rect) {
     let controls = Paragraph::new(vec![
         Line::from("↑/↓: Navigate | PgUp/PgDn/Mouse wheel: Scroll | 1/2/3: Toggle step | Enter: Run sequence"),
-        Line::from("a: Add as task | x: Run task | e: Edit | Tab: Info | c: Clear | q: Quit"),
+        Line::from("a: Add as task | x: Run task | e: Edit | d: Delete | Tab: Info | c: Clear | q: Quit"),
     ])
     .block(
         Block::default()
@@ -331,7 +336,147 @@ fn create_action_buttons_cell(app: &App, task_index: usize) -> Cell {
     };
     spans.push(Span::styled(EDIT_BUTTON_TEXT, edit_style));
 
+    // Delete button
+    spans.push(Span::raw(BUTTON_SPACING));
+    let delete_style = if matches!(hover_button, Some(ActionButton::Delete)) {
+        Style::default().bg(Color::Red).fg(Color::White)
+    } else if is_selected {
+        Style::default().fg(Color::Red).add_modifier(Modifier::BOLD)
+    } else {
+        Style::default().fg(Color::Red)
+    };
+    spans.push(Span::styled(DELETE_BUTTON_TEXT, delete_style));
+
     Cell::from(Line::from(spans))
+}
+
+fn draw_delete_confirmation_dialog(f: &mut Frame, app: &mut App, task_name: &str) {
+    // Create a centered dialog area
+    let area = f.area();
+    let dialog_width = 60.min(area.width - 4);
+    let dialog_height = 11;
+
+    let dialog_area = Rect {
+        x: (area.width - dialog_width) / 2,
+        y: (area.height - dialog_height) / 2,
+        width: dialog_width,
+        height: dialog_height,
+    };
+
+    // Store dialog area for mouse click detection
+    app.delete_dialog_area = Some(dialog_area);
+
+    // Clear the background area first
+    f.render_widget(Clear, dialog_area);
+
+    // Check for hover states on dialog buttons
+    let hover_button = if let Some(hover_state) = &app.button_hover_state {
+        match hover_state.button_type {
+            ButtonType::Dialog(button) => Some(button),
+            _ => None,
+        }
+    } else {
+        None
+    };
+
+    // Create the dialog content using constants
+    let text = vec![
+        Line::from(""),
+        Line::from(vec![
+            Span::styled(
+                DELETE_DIALOG_QUESTION_PREFIX,
+                Style::default().fg(Color::White),
+            ),
+            Span::styled(
+                format!("'{task_name}'"),
+                Style::default()
+                    .fg(Color::Yellow)
+                    .add_modifier(Modifier::BOLD),
+            ),
+            Span::styled(
+                DELETE_DIALOG_QUESTION_SUFFIX,
+                Style::default().fg(Color::White),
+            ),
+        ]),
+        Line::from(""),
+        Line::from(vec![Span::styled(
+            DELETE_DIALOG_WARNING,
+            Style::default().fg(Color::Red),
+        )]),
+        Line::from(vec![Span::styled(
+            DELETE_DIALOG_VERSION_CONTROL_TIP,
+            Style::default().fg(Color::Gray),
+        )]),
+        Line::from(""),
+        Line::from(vec![
+            Span::styled(
+                DELETE_DIALOG_INSTRUCTIONS,
+                Style::default().fg(Color::White),
+            ),
+            Span::styled(
+                DELETE_DIALOG_DELETE_KEY,
+                Style::default()
+                    .fg(Color::Green)
+                    .add_modifier(Modifier::BOLD),
+            ),
+            Span::styled(
+                DELETE_DIALOG_DELETE_ACTION,
+                Style::default().fg(Color::White),
+            ),
+            Span::styled(
+                DELETE_DIALOG_CANCEL_KEYS,
+                Style::default().fg(Color::Red).add_modifier(Modifier::BOLD),
+            ),
+            Span::styled("/", Style::default().fg(Color::White)),
+            Span::styled(
+                DELETE_DIALOG_CANCEL_KEYS_ALT,
+                Style::default().fg(Color::Red).add_modifier(Modifier::BOLD),
+            ),
+            Span::styled(
+                DELETE_DIALOG_CANCEL_ACTION,
+                Style::default().fg(Color::White),
+            ),
+        ]),
+        Line::from(""),
+        Line::from(create_dialog_buttons_line(hover_button)),
+    ];
+
+    let dialog = Paragraph::new(text)
+        .block(
+            Block::default()
+                .title(DELETE_DIALOG_TITLE)
+                .title_style(Style::default().fg(Color::Red).add_modifier(Modifier::BOLD))
+                .borders(Borders::ALL)
+                .border_style(Style::default().fg(Color::Red)),
+        )
+        .alignment(ratatui::layout::Alignment::Center);
+
+    f.render_widget(dialog, dialog_area);
+}
+
+fn create_dialog_buttons_line(hover_button: Option<DialogButton>) -> Vec<Span<'static>> {
+    let mut spans = Vec::new();
+
+    // Delete button with hover styling
+    let delete_style = if matches!(hover_button, Some(DialogButton::Delete)) {
+        Style::default().bg(Color::Red).fg(Color::White)
+    } else {
+        Style::default().fg(Color::Red)
+    };
+    spans.push(Span::styled(DELETE_DIALOG_BUTTON_TEXT, delete_style));
+
+    // Spacing between buttons
+    spans.push(Span::styled("     ", Style::default()));
+
+    // Cancel button with hover styling
+    let cancel_style = if matches!(hover_button, Some(DialogButton::Cancel)) {
+        Style::default().bg(Color::Gray).fg(Color::Black)
+    } else {
+        Style::default().fg(Color::Gray)
+    };
+    spans.push(Span::styled(CANCEL_DIALOG_BUTTON_TEXT, cancel_style));
+
+    spans
 }
 
 fn create_sequence_controls_paragraph(app: &App) -> Paragraph {

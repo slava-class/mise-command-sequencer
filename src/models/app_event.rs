@@ -27,6 +27,7 @@ pub enum AppEvent {
     TaskOutput(String),
     TaskCompleted,
     TaskCancelled,
+    DeleteTask(String),
     Tick,
     Sequence(SequenceEvent),
 }

@@ -1,6 +1,7 @@
 use anyhow::{Context, Result};
-use std::process::Stdio;
+use std::{path::Path, process::Stdio};
 use tokio::{
+    fs,
     io::{AsyncBufReadExt, BufReader},
     process::Command,
     sync::mpsc,
@@ -134,6 +135,68 @@ impl MiseClient {
         if output_tx.send(final_message).is_err() {
             eprintln!("Warning: Failed to send task completion message");
         }
+
+        Ok(())
+    }
+
+    /// Delete a mise task
+    pub async fn delete_task(&self, task_name: &str) -> Result<()> {
+        // First, get task info to determine if it's file-based or config-based
+        let task_info = self.get_task_info(task_name).await?;
+
+        let source = &task_info.source;
+        if source.ends_with(".toml") {
+            // Config-based task - remove from mise.toml
+            self.delete_task_from_config(source, task_name).await?;
+        } else {
+            // File-based task - delete the file
+            self.delete_task_file(source).await?;
+        }
+
+        Ok(())
+    }
+
+    async fn delete_task_from_config(&self, config_path: &str, task_name: &str) -> Result<()> {
+        // Read the TOML file
+        let content = fs::read_to_string(config_path)
+            .await
+            .context("Failed to read mise.toml file")?;
+
+        // Parse the TOML
+        let mut config: toml::Table = content.parse().context("Failed to parse mise.toml file")?;
+
+        // Remove the task from the [tasks] section
+        if let Some(tasks) = config.get_mut("tasks") {
+            if let Some(tasks_table) = tasks.as_table_mut() {
+                if tasks_table.remove(task_name).is_some() {
+                    // Write the updated content back
+                    let updated_content =
+                        toml::to_string(&config).context("Failed to serialize updated TOML")?;
+
+                    fs::write(config_path, updated_content)
+                        .await
+                        .context("Failed to write updated mise.toml file")?;
+                } else {
+                    anyhow::bail!("Task '{}' not found in tasks section", task_name);
+                }
+            } else {
+                anyhow::bail!("Tasks section is not a table");
+            }
+        } else {
+            anyhow::bail!("No tasks section found in mise.toml");
+        }
+
+        Ok(())
+    }
+
+    async fn delete_task_file(&self, file_path: &str) -> Result<()> {
+        if !Path::new(file_path).exists() {
+            anyhow::bail!("Task file '{}' does not exist", file_path);
+        }
+
+        fs::remove_file(file_path)
+            .await
+            .context("Failed to delete task file")?;
 
         Ok(())
     }

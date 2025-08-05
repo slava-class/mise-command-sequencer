@@ -68,6 +68,10 @@ impl SequenceState {
         self.reset_execution();
     }
 
+    pub fn remove_task(&mut self, task_name: &str) {
+        self.task_steps.remove(task_name);
+    }
+
     pub fn reset_execution(&mut self) {
         self.current_step = None;
         self.is_running = false;
@@ -340,5 +344,66 @@ mod tests {
 
         let command = seq.generate_mise_task_command();
         assert_eq!(command, Some("mise run build".to_string()));
+    }
+
+    #[test]
+    fn test_remove_task() {
+        let mut seq = SequenceState::new(3);
+
+        // Add tasks to multiple steps
+        seq.set_task_step("build", 0, true);
+        seq.set_task_step("test", 1, true);
+        seq.set_task_step("build", 2, true);
+
+        // Verify tasks are set
+        assert!(seq.is_task_enabled_for_step("build", 0));
+        assert!(seq.is_task_enabled_for_step("test", 1));
+        assert!(seq.is_task_enabled_for_step("build", 2));
+
+        // Remove build task
+        seq.remove_task("build");
+
+        // Verify build task is completely removed from all steps
+        assert!(!seq.is_task_enabled_for_step("build", 0));
+        assert!(!seq.is_task_enabled_for_step("build", 2));
+
+        // Verify other tasks are unaffected
+        assert!(seq.is_task_enabled_for_step("test", 1));
+
+        // Verify task is not in any step
+        let step0_tasks = seq.get_tasks_for_step(0);
+        let step1_tasks = seq.get_tasks_for_step(1);
+        let step2_tasks = seq.get_tasks_for_step(2);
+
+        assert!(!step0_tasks.contains(&"build".to_string()));
+        assert!(step1_tasks.contains(&"test".to_string()));
+        assert!(!step2_tasks.contains(&"build".to_string()));
+    }
+
+    #[test]
+    fn test_remove_nonexistent_task() {
+        let mut seq = SequenceState::new(3);
+
+        // Add some tasks
+        seq.set_task_step("build", 0, true);
+        seq.set_task_step("test", 1, true);
+
+        // Remove a task that doesn't exist
+        seq.remove_task("nonexistent");
+
+        // Verify existing tasks are unaffected
+        assert!(seq.is_task_enabled_for_step("build", 0));
+        assert!(seq.is_task_enabled_for_step("test", 1));
+    }
+
+    #[test]
+    fn test_remove_task_from_empty_sequence() {
+        let mut seq = SequenceState::new(3);
+
+        // Remove task from empty sequence (should not panic)
+        seq.remove_task("build");
+
+        // Verify sequence is still empty
+        assert_eq!(seq.task_steps.len(), 0);
     }
 }

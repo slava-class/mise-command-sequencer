@@ -1,4 +1,5 @@
 use anyhow::Result;
+use ratatui::layout::Rect;
 use std::{collections::VecDeque, time::Instant};
 use tokio::sync::mpsc;
 use tokio::task::JoinHandle;
@@ -33,6 +34,8 @@ pub struct App {
     pub current_visible_height: usize,
     pub output_scroll_offset: usize,
     pub current_output_visible_height: usize,
+    pub pending_delete_task: Option<String>,
+    pub delete_dialog_area: Option<Rect>,
 }
 
 impl App {
@@ -58,6 +61,8 @@ impl App {
             current_visible_height: 0,
             output_scroll_offset: 0,
             current_output_visible_height: 0,
+            pending_delete_task: None,
+            delete_dialog_area: None,
         }
     }
 
