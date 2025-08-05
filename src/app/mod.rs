@@ -361,4 +361,51 @@ mod tests {
         // Should not panic when no receiver is set
         app.poll_task_output();
     }
+
+    #[test]
+    fn test_ansi_color_bleeding_prevention() {
+        let mut app = create_test_app();
+
+        // Simulate colored STDOUT/STDERR output that could cause bleeding
+        let colored_stdout = "STDOUT: \x1b[32mSuccess message";
+        let colored_stderr = "STDERR: \x1b[31mError message";
+        let plain_text = "Plain text line";
+
+        // Add the output lines directly to simulate the event handling
+        app.task_output.push_back(colored_stdout.to_string());
+        app.task_output.push_back(colored_stderr.to_string());
+        app.task_output.push_back(plain_text.to_string());
+
+        // Verify the lines were added
+        assert_eq!(app.task_output.len(), 3);
+        assert_eq!(app.task_output[0], colored_stdout);
+        assert_eq!(app.task_output[1], colored_stderr);
+        assert_eq!(app.task_output[2], plain_text);
+
+        // The actual bleeding prevention is tested in the UI layer
+        // through the ensure_ansi_reset function tests
+    }
+
+    #[test]
+    fn test_multiple_colored_lines_sequence() {
+        let mut app = create_test_app();
+
+        // Simulate a sequence of colored lines like what might come from a build process
+        let lines = vec![
+            "STDOUT: \x1b[36mBuilding project...",
+            "STDOUT: \x1b[32m✓ Compiled successfully",
+            "STDERR: \x1b[33mWarning: deprecated function",
+            "STDOUT: \x1b[32m✓ Tests passed",
+            "Plain summary line",
+        ];
+
+        for line in &lines {
+            app.task_output.push_back(line.to_string());
+        }
+
+        assert_eq!(app.task_output.len(), 5);
+        for (i, expected_line) in lines.iter().enumerate() {
+            assert_eq!(app.task_output[i], *expected_line);
+        }
+    }
 }

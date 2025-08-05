@@ -10,6 +10,18 @@ use crate::app::App;
 use crate::ui::button_layout::{ActionButton, ButtonType, DialogButton, SequenceButton};
 use crate::ui::constants::*;
 
+fn ensure_ansi_reset(line: &str) -> String {
+    const ANSI_RESET: &str = "\x1b[0m";
+
+    // Check if line already ends with ANSI reset sequence
+    if line.ends_with(ANSI_RESET) {
+        line.to_string()
+    } else {
+        // Add reset sequence to end of line to prevent color bleeding
+        format!("{line}{ANSI_RESET}")
+    }
+}
+
 pub struct TableLayout {
     pub table_area: Rect,
     pub column_rects: Vec<Rect>,
@@ -225,8 +237,11 @@ fn draw_task_output(app: &mut App, f: &mut Frame, area: Rect) {
         .skip(start_index)
         .take(end_index.saturating_sub(start_index))
     {
+        // Ensure line has ANSI reset to prevent color bleeding
+        let normalized_line = ensure_ansi_reset(line);
+
         // Parse ANSI escape sequences and convert to ratatui Text
-        match ansi_to_tui::IntoText::into_text(line) {
+        match ansi_to_tui::IntoText::into_text(&normalized_line) {
             Ok(parsed_text) => {
                 // Extract lines from the parsed text and add them
                 for parsed_line in parsed_text.lines {
@@ -235,7 +250,7 @@ fn draw_task_output(app: &mut App, f: &mut Frame, area: Rect) {
             }
             Err(_) => {
                 // Fallback to raw text if parsing fails
-                output_text.push(Line::raw(line.clone()));
+                output_text.push(Line::raw(normalized_line));
             }
         }
     }
@@ -611,5 +626,65 @@ fn render_sequence_controls_in_title(app: &App, f: &mut Frame, table_area: Rect)
     if controls_area.x + controls_area.width <= table_area.x + table_area.width {
         let sequence_controls = create_sequence_controls_paragraph(app);
         f.render_widget(sequence_controls, controls_area);
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_ensure_ansi_reset_already_has_reset() {
+        let line = "STDOUT: Some output\x1b[0m";
+        let result = ensure_ansi_reset(line);
+        assert_eq!(result, line);
+    }
+
+    #[test]
+    fn test_ensure_ansi_reset_missing_reset() {
+        let line = "STDERR: Error message";
+        let result = ensure_ansi_reset(line);
+        assert_eq!(result, "STDERR: Error message\x1b[0m");
+    }
+
+    #[test]
+    fn test_ensure_ansi_reset_empty_string() {
+        let line = "";
+        let result = ensure_ansi_reset(line);
+        assert_eq!(result, "\x1b[0m");
+    }
+
+    #[test]
+    fn test_ensure_ansi_reset_with_color_codes() {
+        let line = "\x1b[31mSTDOUT: Red text\x1b[32m";
+        let result = ensure_ansi_reset(line);
+        assert_eq!(result, "\x1b[31mSTDOUT: Red text\x1b[32m\x1b[0m");
+    }
+
+    #[test]
+    fn test_ensure_ansi_reset_partial_escape_sequence() {
+        let line = "Normal text\x1b[31";
+        let result = ensure_ansi_reset(line);
+        assert_eq!(result, "Normal text\x1b[31\x1b[0m");
+    }
+
+    #[test]
+    fn test_ensure_ansi_reset_multiple_resets_in_middle() {
+        let line = "Text\x1b[0m more text";
+        let result = ensure_ansi_reset(line);
+        assert_eq!(result, "Text\x1b[0m more text\x1b[0m");
+    }
+
+    #[test]
+    fn test_ensure_ansi_reset_stdout_stderr_prefixes() {
+        // Test the specific use case that was causing bleeding
+        let stdout_line = "STDOUT: \x1b[32mSuccess message";
+        let stderr_line = "STDERR: \x1b[31mError message";
+
+        let stdout_result = ensure_ansi_reset(stdout_line);
+        let stderr_result = ensure_ansi_reset(stderr_line);
+
+        assert_eq!(stdout_result, "STDOUT: \x1b[32mSuccess message\x1b[0m");
+        assert_eq!(stderr_result, "STDERR: \x1b[31mError message\x1b[0m");
     }
 }
