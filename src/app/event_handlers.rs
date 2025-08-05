@@ -375,8 +375,12 @@ impl App {
                     if column_index < table_layout.column_rects.len() {
                         let column_rect = table_layout.column_rects[column_index];
                         if col >= column_rect.x && col < column_rect.x + column_rect.width {
-                            self.toggle_current_task_step(step).await?;
-                            return Ok(());
+                            // Check if click is within the step button area (7 characters wide, centered in 8-char column)
+                            let relative_col = col - column_rect.x;
+                            if relative_col <= 7 {
+                                self.toggle_current_task_step(step).await?;
+                                return Ok(());
+                            }
                         }
                     }
                 }
@@ -505,21 +509,48 @@ impl App {
             let actual_task_index = self.scroll_offset + visible_task_index;
 
             if actual_task_index < self.tasks.len() {
-                // Check actions column (last column)
-                if let Some(actions_rect) = table_layout.column_rects.last() {
-                    if col >= actions_rect.x && col < actions_rect.x + actions_rect.width {
-                        let action_layout = ActionButtonLayout::new(actions_rect);
-                        let relative_col = col - actions_rect.x;
+                // Check step columns (1, 2, 3) first
+                let num_steps = 3;
+                for step in 0..num_steps {
+                    let column_index = step + 1; // Steps start at column 1
+                    if column_index < table_layout.column_rects.len() {
+                        let column_rect = table_layout.column_rects[column_index];
+                        if col >= column_rect.x && col < column_rect.x + column_rect.width {
+                            // Check if mouse is over the step button area (7 characters wide, centered in 8-char column)
+                            let relative_col = col - column_rect.x;
+                            if relative_col <= 7 {
+                                new_hover_state = Some(ButtonHoverState::new(
+                                    ButtonType::Step {
+                                        step_index: step,
+                                        task_index: actual_task_index,
+                                    },
+                                    row,
+                                    col,
+                                ));
+                                break;
+                            }
+                        }
+                    }
+                }
 
-                        if let Some(button) = action_layout.get_button_at_position(relative_col) {
-                            new_hover_state = Some(ButtonHoverState::new(
-                                ButtonType::Action {
-                                    button,
-                                    task_index: actual_task_index,
-                                },
-                                row,
-                                col,
-                            ));
+                // If no step button hover, check actions column (last column)
+                if new_hover_state.is_none() {
+                    if let Some(actions_rect) = table_layout.column_rects.last() {
+                        if col >= actions_rect.x && col < actions_rect.x + actions_rect.width {
+                            let action_layout = ActionButtonLayout::new(actions_rect);
+                            let relative_col = col - actions_rect.x;
+
+                            if let Some(button) = action_layout.get_button_at_position(relative_col)
+                            {
+                                new_hover_state = Some(ButtonHoverState::new(
+                                    ButtonType::Action {
+                                        button,
+                                        task_index: actual_task_index,
+                                    },
+                                    row,
+                                    col,
+                                ));
+                            }
                         }
                     }
                 }

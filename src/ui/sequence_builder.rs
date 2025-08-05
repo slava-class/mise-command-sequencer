@@ -19,7 +19,7 @@ pub fn calculate_table_layout(area: Rect, num_steps: usize) -> TableLayout {
     // Create constraints matching the table in draw_matrix_interface
     let mut constraints = vec![Constraint::Min(20)]; // Task name column
     for _ in 0..num_steps {
-        constraints.push(Constraint::Length(8)); // Step columns
+        constraints.push(Constraint::Length(8)); // Step columns (8 chars to fit "Sequence" header)
     }
     constraints.push(Constraint::Min(20)); // Actions column
 
@@ -90,11 +90,17 @@ fn draw_matrix_interface(app: &mut App, f: &mut Frame, area: Rect) {
     // Create headers: Task Name, Step 1, Step 2, Step 3, Actions
     let mut header_cells =
         vec![Cell::from("Task Name").style(Style::default().add_modifier(Modifier::BOLD))];
-    for i in 1..=num_steps {
-        header_cells.push(
-            Cell::from(format!("Step {i}")).style(Style::default().add_modifier(Modifier::BOLD)),
-        );
-    }
+
+    // Add "Sequence" header in the first step column
+    header_cells.push(Cell::from("Sequence").style(Style::default().add_modifier(Modifier::BOLD)));
+
+    // Add empty header for second step column
+    header_cells.push(Cell::from(""));
+    // Add empty header for third step column
+    header_cells.push(Cell::from(""));
+
+    // Actions header - center it manually by adding equal padding on both sides
+    // "Actions" is 7 chars, so we add spaces to center it
     header_cells.push(Cell::from("Actions").style(Style::default().add_modifier(Modifier::BOLD)));
 
     let header = Row::new(header_cells).height(1);
@@ -122,18 +128,10 @@ fn draw_matrix_interface(app: &mut App, f: &mut Frame, area: Rect) {
 
         cells.push(Cell::from(task_name_text).style(task_name_style));
 
-        // Step toggle cells
+        // Step button cells
         for step in 0..num_steps {
-            let is_enabled = app
-                .sequence_state
-                .is_task_enabled_for_step(&task.name, step);
-            let symbol = if is_enabled { "●" } else { " " };
-            let style = if is_enabled {
-                Style::default().fg(Color::Green)
-            } else {
-                Style::default().fg(Color::DarkGray)
-            };
-            cells.push(Cell::from(symbol).style(style));
+            let step_button_cell = create_step_button_cell(app, actual_index, step);
+            cells.push(step_button_cell);
         }
 
         // Action buttons with hover styling
@@ -146,7 +144,7 @@ fn draw_matrix_interface(app: &mut App, f: &mut Frame, area: Rect) {
     // Create the table with proper column constraints
     let mut constraints = vec![Constraint::Min(20)]; // Task name column
     for _ in 0..num_steps {
-        constraints.push(Constraint::Length(8)); // Step columns
+        constraints.push(Constraint::Length(8)); // Step columns (8 chars to fit "Sequence" header)
     }
     constraints.push(Constraint::Min(20)); // Actions column
 
@@ -348,6 +346,58 @@ fn create_action_buttons_cell(app: &App, task_index: usize) -> Cell {
     spans.push(Span::styled(DELETE_BUTTON_TEXT, delete_style));
 
     Cell::from(Line::from(spans))
+}
+
+fn create_step_button_cell(app: &App, task_index: usize, step_index: usize) -> Cell {
+    use crate::ui::constants::{STEP_1_TEXT, STEP_2_TEXT, STEP_3_TEXT, STEP_DISABLED_TEXT};
+
+    // Check if this step button is being hovered
+    let is_hovered = if let Some(hover_state) = &app.button_hover_state {
+        match hover_state.button_type {
+            ButtonType::Step {
+                step_index: hovered_step,
+                task_index: hovered_task,
+            } => hovered_step == step_index && hovered_task == task_index,
+            _ => false,
+        }
+    } else {
+        false
+    };
+
+    // Check if this task is enabled for this step
+    let task_name = &app.tasks[task_index].name;
+    let is_enabled = app
+        .sequence_state
+        .is_task_enabled_for_step(task_name, step_index);
+
+    // Determine the text to display
+    let text = if is_enabled {
+        match step_index {
+            0 => STEP_1_TEXT,
+            1 => STEP_2_TEXT,
+            2 => STEP_3_TEXT,
+            _ => STEP_DISABLED_TEXT,
+        }
+    } else {
+        STEP_DISABLED_TEXT
+    };
+
+    // Determine the style
+    let style = if is_hovered {
+        // Hovered state - green background
+        Style::default().bg(Color::Green).fg(Color::Black)
+    } else if is_enabled {
+        // Enabled state - green background with black bold text for maximum contrast
+        Style::default()
+            .bg(Color::Green)
+            .fg(Color::Black)
+            .add_modifier(Modifier::BOLD)
+    } else {
+        // Disabled state - gray text
+        Style::default().fg(Color::DarkGray)
+    };
+
+    Cell::from(text).style(style)
 }
 
 fn draw_delete_confirmation_dialog(f: &mut Frame, app: &mut App, task_name: &str) {

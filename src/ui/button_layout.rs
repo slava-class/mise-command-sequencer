@@ -24,6 +24,13 @@ pub enum DialogButton {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq)]
+pub enum StepButton {
+    Step1,
+    Step2,
+    Step3,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq)]
 pub enum ButtonType {
     Action {
         button: ActionButton,
@@ -31,6 +38,10 @@ pub enum ButtonType {
     },
     Sequence(SequenceButton),
     Dialog(DialogButton),
+    Step {
+        step_index: usize,
+        task_index: usize,
+    },
 }
 
 pub struct ActionButtonLayout {
@@ -164,6 +175,42 @@ pub fn get_dialog_button_at_position(
         Some(DialogButton::Cancel)
     } else {
         None
+    }
+}
+
+pub struct StepButtonLayout {
+    pub step_ranges: Vec<(u16, u16)>, // (start_col, end_col) for each step button
+}
+
+impl StepButtonLayout {
+    pub fn new(step_rects: &[Rect]) -> Self {
+        let mut step_ranges = Vec::new();
+
+        for _rect in step_rects {
+            // Step buttons are centered in their cells with 7 characters
+            // Account for typical cell padding
+            let cell_padding = 1;
+            let button_width = 7;
+            let start_col = cell_padding;
+            let end_col = start_col + button_width - 1;
+
+            step_ranges.push((start_col, end_col));
+        }
+
+        Self { step_ranges }
+    }
+
+    pub fn get_step_at_position(&self, step_index: usize, relative_col: u16) -> Option<usize> {
+        if step_index < self.step_ranges.len() {
+            let (start, end) = self.step_ranges[step_index];
+            if (start..=end).contains(&relative_col) {
+                Some(step_index)
+            } else {
+                None
+            }
+        } else {
+            None
+        }
     }
 }
 

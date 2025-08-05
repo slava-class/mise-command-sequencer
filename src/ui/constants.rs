@@ -34,6 +34,12 @@ pub const DELETE_DIALOG_CANCEL_KEYS: &str = "N";
 pub const DELETE_DIALOG_CANCEL_KEYS_ALT: &str = "ESC";
 pub const DELETE_DIALOG_CANCEL_ACTION: &str = " to cancel";
 
+// Step button texts
+pub const STEP_1_TEXT: &str = "[  1  ]";
+pub const STEP_2_TEXT: &str = "[  2  ]";
+pub const STEP_3_TEXT: &str = "[  3  ]";
+pub const STEP_DISABLED_TEXT: &str = "[     ]";
+
 // Other UI texts
 pub const TASK_OUTPUT_TITLE: &str = "Task Output";
 pub const CONTROLS_TITLE: &str = "Controls";
