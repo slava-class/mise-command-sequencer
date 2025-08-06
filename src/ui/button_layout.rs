@@ -1,6 +1,47 @@
 use ratatui::layout::Rect;
+use ratatui::style::{Color, Modifier, Style};
 
 use super::constants::*;
+
+/// Generic button range representing start and end positions
+type ButtonRange = (u16, u16);
+
+/// Calculate sequential button ranges from a list of button texts
+/// Each button is placed after the previous one with spacing
+fn calculate_sequential_button_ranges(
+    button_texts: &[&str],
+    start_position: u16,
+) -> Vec<ButtonRange> {
+    let mut ranges = Vec::new();
+    let mut current_pos = start_position;
+
+    for (i, &text) in button_texts.iter().enumerate() {
+        let start = current_pos;
+        let end = start + text.len() as u16 - 1;
+        ranges.push((start, end));
+
+        // Add spacing for next button (except for the last one)
+        if i < button_texts.len() - 1 {
+            current_pos = end + 1 + BUTTON_SPACING.len() as u16;
+        }
+    }
+
+    ranges
+}
+
+/// Find which button range contains the given position
+fn find_button_at_position<T: Copy>(
+    ranges: &[ButtonRange],
+    buttons: &[T],
+    position: u16,
+) -> Option<T> {
+    for (range, &button) in ranges.iter().zip(buttons.iter()) {
+        if (range.0..=range.1).contains(&position) {
+            return Some(button);
+        }
+    }
+    None
+}
 
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub enum ActionButton {
@@ -45,87 +86,93 @@ pub enum ButtonType {
 }
 
 pub struct ActionButtonLayout {
-    pub run_range: (u16, u16), // (start_col, end_col)
-    pub cat_range: (u16, u16),
-    pub edit_range: (u16, u16),
-    pub delete_range: (u16, u16),
+    ranges: Vec<ButtonRange>,
+    buttons: Vec<ActionButton>,
 }
 
 impl ActionButtonLayout {
     pub fn new(_actions_rect: &Rect) -> Self {
-        // Calculate positions based on actual string lengths
-        // No padding - buttons start at position 0 in the cell
-        let cell_padding = 0;
+        // Define the sequence of action buttons
+        const ACTION_BUTTON_TEXTS: &[&str] = &[
+            RUN_BUTTON_TEXT,
+            CAT_BUTTON_TEXT,
+            EDIT_BUTTON_TEXT,
+            DELETE_BUTTON_TEXT,
+        ];
+        const ACTION_BUTTONS: &[ActionButton] = &[
+            ActionButton::Run,
+            ActionButton::Cat,
+            ActionButton::Edit,
+            ActionButton::Delete,
+        ];
 
-        let run_start = cell_padding;
-        let run_end = run_start + RUN_BUTTON_TEXT.len() - 1;
-
-        let cat_start = run_end + 1 + BUTTON_SPACING.len();
-        let cat_end = cat_start + CAT_BUTTON_TEXT.len() - 1;
-
-        let edit_start = cat_end + 1 + BUTTON_SPACING.len();
-        let edit_end = edit_start + EDIT_BUTTON_TEXT.len() - 1;
-
-        let delete_start = edit_end + 1 + BUTTON_SPACING.len();
-        let delete_end = delete_start + DELETE_BUTTON_TEXT.len() - 1;
+        let ranges = calculate_sequential_button_ranges(ACTION_BUTTON_TEXTS, 0);
 
         Self {
-            run_range: (run_start as u16, run_end as u16),
-            cat_range: (cat_start as u16, cat_end as u16),
-            edit_range: (edit_start as u16, edit_end as u16),
-            delete_range: (delete_start as u16, delete_end as u16),
+            ranges,
+            buttons: ACTION_BUTTONS.to_vec(),
         }
     }
 
     pub fn get_button_at_position(&self, relative_col: u16) -> Option<ActionButton> {
-        if (self.run_range.0..=self.run_range.1).contains(&relative_col) {
-            Some(ActionButton::Run)
-        } else if (self.cat_range.0..=self.cat_range.1).contains(&relative_col) {
-            Some(ActionButton::Cat)
-        } else if (self.edit_range.0..=self.edit_range.1).contains(&relative_col) {
-            Some(ActionButton::Edit)
-        } else if (self.delete_range.0..=self.delete_range.1).contains(&relative_col) {
-            Some(ActionButton::Delete)
-        } else {
-            None
-        }
+        find_button_at_position(&self.ranges, &self.buttons, relative_col)
+    }
+
+    // Compatibility methods for existing code that accesses ranges directly
+    pub fn run_range(&self) -> ButtonRange {
+        self.ranges[0]
+    }
+    pub fn cat_range(&self) -> ButtonRange {
+        self.ranges[1]
+    }
+    pub fn edit_range(&self) -> ButtonRange {
+        self.ranges[2]
+    }
+    pub fn delete_range(&self) -> ButtonRange {
+        self.ranges[3]
     }
 }
 
 pub struct SequenceButtonLayout {
-    pub run_sequence_range: (u16, u16),
-    pub add_as_task_range: (u16, u16),
-    pub clear_range: (u16, u16),
+    ranges: Vec<ButtonRange>,
+    buttons: Vec<SequenceButton>,
 }
 
 impl SequenceButtonLayout {
     pub fn new(_controls_start_col: u16) -> Self {
-        let run_sequence_start = 0;
-        let run_sequence_end = run_sequence_start + RUN_SEQUENCE_BUTTON_TEXT.len() - 1;
+        // Define the sequence of sequence buttons
+        const SEQUENCE_BUTTON_TEXTS: &[&str] = &[
+            RUN_SEQUENCE_BUTTON_TEXT,
+            ADD_AS_TASK_BUTTON_TEXT,
+            CLEAR_BUTTON_TEXT,
+        ];
+        const SEQUENCE_BUTTONS: &[SequenceButton] = &[
+            SequenceButton::RunSequence,
+            SequenceButton::AddAsTask,
+            SequenceButton::Clear,
+        ];
 
-        let add_as_task_start = run_sequence_end + 1 + BUTTON_SPACING.len();
-        let add_as_task_end = add_as_task_start + ADD_AS_TASK_BUTTON_TEXT.len() - 1;
-
-        let clear_start = add_as_task_end + 1 + BUTTON_SPACING.len();
-        let clear_end = clear_start + CLEAR_BUTTON_TEXT.len() - 1;
+        let ranges = calculate_sequential_button_ranges(SEQUENCE_BUTTON_TEXTS, 0);
 
         Self {
-            run_sequence_range: (run_sequence_start as u16, run_sequence_end as u16),
-            add_as_task_range: (add_as_task_start as u16, add_as_task_end as u16),
-            clear_range: (clear_start as u16, clear_end as u16),
+            ranges,
+            buttons: SEQUENCE_BUTTONS.to_vec(),
         }
     }
 
     pub fn get_button_at_position(&self, relative_col: u16) -> Option<SequenceButton> {
-        if (self.run_sequence_range.0..=self.run_sequence_range.1).contains(&relative_col) {
-            Some(SequenceButton::RunSequence)
-        } else if (self.add_as_task_range.0..=self.add_as_task_range.1).contains(&relative_col) {
-            Some(SequenceButton::AddAsTask)
-        } else if (self.clear_range.0..=self.clear_range.1).contains(&relative_col) {
-            Some(SequenceButton::Clear)
-        } else {
-            None
-        }
+        find_button_at_position(&self.ranges, &self.buttons, relative_col)
+    }
+
+    // Compatibility methods for existing code that accesses ranges directly
+    pub fn run_sequence_range(&self) -> ButtonRange {
+        self.ranges[0]
+    }
+    pub fn add_as_task_range(&self) -> ButtonRange {
+        self.ranges[1]
+    }
+    pub fn clear_range(&self) -> ButtonRange {
+        self.ranges[2]
     }
 }
 
@@ -179,32 +226,18 @@ pub fn get_dialog_button_at_position(
 }
 
 pub struct StepButtonLayout {
-    pub step_1_range: (u16, u16),
-    pub step_2_range: (u16, u16),
-    pub step_3_range: (u16, u16),
+    range: ButtonRange,
+    num_steps: usize,
 }
 
 impl StepButtonLayout {
     pub fn new(_step_rect: &Rect) -> Self {
-        use crate::ui::constants::{STEP_1_TEXT, STEP_2_TEXT, STEP_3_TEXT};
+        use crate::ui::constants::STEP_1_TEXT; // All step texts have the same length
 
-        // Step buttons are rendered as spans: [step_text] + [space]
-        // Follow the exact same pattern as ActionButtonLayout
-        let cell_padding = 0; // Start at position 0 like we determined works
-
-        let step_1_start = cell_padding;
-        let step_1_end = step_1_start + STEP_1_TEXT.len() - 1;
-
-        let step_2_start = cell_padding;
-        let step_2_end = step_2_start + STEP_2_TEXT.len() - 1;
-
-        let step_3_start = cell_padding;
-        let step_3_end = step_3_start + STEP_3_TEXT.len() - 1;
-
+        // Step buttons start at position 0 and have the same width
         Self {
-            step_1_range: (step_1_start as u16, step_1_end as u16),
-            step_2_range: (step_2_start as u16, step_2_end as u16),
-            step_3_range: (step_3_start as u16, step_3_end as u16),
+            range: (0, STEP_1_TEXT.len() as u16 - 1),
+            num_steps: 3,
         }
     }
 
@@ -213,18 +246,28 @@ impl StepButtonLayout {
         step_index: usize,
         relative_col: u16,
     ) -> Option<usize> {
-        let range = match step_index {
-            0 => self.step_1_range,
-            1 => self.step_2_range,
-            2 => self.step_3_range,
-            _ => return None,
-        };
+        // Validate step index
+        if step_index >= self.num_steps {
+            return None;
+        }
 
-        if (range.0..=range.1).contains(&relative_col) {
+        // All steps have the same range
+        if (self.range.0..=self.range.1).contains(&relative_col) {
             Some(step_index)
         } else {
             None
         }
+    }
+
+    // Compatibility methods for existing code
+    pub fn step_1_range(&self) -> ButtonRange {
+        self.range
+    }
+    pub fn step_2_range(&self) -> ButtonRange {
+        self.range
+    }
+    pub fn step_3_range(&self) -> ButtonRange {
+        self.range
     }
 }
 
@@ -241,6 +284,200 @@ impl ButtonHoverState {
             button_type,
             row,
             col,
+        }
+    }
+}
+
+/// Theme definition for different button types
+#[derive(Debug, Clone, Copy)]
+pub enum ButtonTheme {
+    Action {
+        normal: Color,
+        hover_bg: Color,
+        hover_fg: Color,
+    },
+    Sequence {
+        normal: Color,
+        hover_bg: Color,
+        hover_fg: Color,
+    },
+    Dialog {
+        normal: Color,
+        hover_bg: Color,
+        hover_fg: Color,
+    },
+    Step {
+        enabled_bg: Color,
+        enabled_fg: Color,
+        disabled: Color,
+        hover_bg: Color,
+        hover_fg: Color,
+    },
+}
+
+impl ButtonTheme {
+    pub const ACTION_RUN: Self = Self::Action {
+        normal: Color::Cyan,
+        hover_bg: Color::Green,
+        hover_fg: Color::Black,
+    };
+
+    pub const ACTION_CAT: Self = Self::Action {
+        normal: Color::Cyan,
+        hover_bg: Color::Blue,
+        hover_fg: Color::White,
+    };
+
+    pub const ACTION_EDIT: Self = Self::Action {
+        normal: Color::Cyan,
+        hover_bg: Color::Magenta,
+        hover_fg: Color::White,
+    };
+
+    pub const ACTION_DELETE: Self = Self::Action {
+        normal: Color::Red,
+        hover_bg: Color::Red,
+        hover_fg: Color::White,
+    };
+
+    pub const SEQUENCE: Self = Self::Sequence {
+        normal: Color::Blue,
+        hover_bg: Color::Green,
+        hover_fg: Color::Black,
+    };
+
+    pub const SEQUENCE_CLEAR: Self = Self::Sequence {
+        normal: Color::Blue,
+        hover_bg: Color::Red,
+        hover_fg: Color::White,
+    };
+
+    pub const SEQUENCE_ADD: Self = Self::Sequence {
+        normal: Color::Blue,
+        hover_bg: Color::Cyan,
+        hover_fg: Color::Black,
+    };
+
+    pub const DIALOG_DELETE: Self = Self::Dialog {
+        normal: Color::Red,
+        hover_bg: Color::Red,
+        hover_fg: Color::White,
+    };
+
+    pub const DIALOG_CANCEL: Self = Self::Dialog {
+        normal: Color::Gray,
+        hover_bg: Color::Gray,
+        hover_fg: Color::Black,
+    };
+
+    pub const STEP: Self = Self::Step {
+        enabled_bg: Color::Green,
+        enabled_fg: Color::Black,
+        disabled: Color::DarkGray,
+        hover_bg: Color::Green,
+        hover_fg: Color::Black,
+    };
+}
+
+/// Semantic compression for button styling patterns
+pub struct ButtonStyleManager;
+
+impl ButtonStyleManager {
+    /// Create button style based on state and theme
+    pub fn create_button_style(
+        theme: ButtonTheme,
+        is_hovered: bool,
+        is_selected: bool,
+        is_enabled: Option<bool>, // For step buttons
+    ) -> Style {
+        if is_hovered {
+            return Self::hovered_style(theme);
+        }
+
+        if is_selected {
+            return Self::selected_style(theme);
+        }
+
+        if let Some(enabled) = is_enabled {
+            return Self::state_style(theme, enabled);
+        }
+
+        Self::normal_style(theme)
+    }
+
+    fn hovered_style(theme: ButtonTheme) -> Style {
+        match theme {
+            ButtonTheme::Action {
+                hover_bg, hover_fg, ..
+            } => Style::default().bg(hover_bg).fg(hover_fg),
+            ButtonTheme::Sequence {
+                hover_bg, hover_fg, ..
+            } => Style::default().bg(hover_bg).fg(hover_fg),
+            ButtonTheme::Dialog {
+                hover_bg, hover_fg, ..
+            } => Style::default().bg(hover_bg).fg(hover_fg),
+            ButtonTheme::Step {
+                hover_bg, hover_fg, ..
+            } => Style::default().bg(hover_bg).fg(hover_fg),
+        }
+    }
+
+    fn selected_style(theme: ButtonTheme) -> Style {
+        match theme {
+            ButtonTheme::Action { normal, .. } => {
+                Style::default().fg(normal).add_modifier(Modifier::BOLD)
+            }
+            ButtonTheme::Sequence { normal, .. } => {
+                Style::default().fg(normal).add_modifier(Modifier::BOLD)
+            }
+            ButtonTheme::Dialog { normal, .. } => {
+                Style::default().fg(normal).add_modifier(Modifier::BOLD)
+            }
+            ButtonTheme::Step {
+                enabled_bg,
+                enabled_fg,
+                ..
+            } => Style::default()
+                .bg(enabled_bg)
+                .fg(enabled_fg)
+                .add_modifier(Modifier::BOLD),
+        }
+    }
+
+    fn state_style(theme: ButtonTheme, is_enabled: bool) -> Style {
+        match theme {
+            ButtonTheme::Step {
+                enabled_bg,
+                enabled_fg,
+                disabled,
+                ..
+            } => {
+                if is_enabled {
+                    Style::default()
+                        .bg(enabled_bg)
+                        .fg(enabled_fg)
+                        .add_modifier(Modifier::BOLD)
+                } else {
+                    Style::default().fg(disabled)
+                }
+            }
+            other => Self::normal_style(other), // Fall back to normal for non-step buttons
+        }
+    }
+
+    fn normal_style(theme: ButtonTheme) -> Style {
+        match theme {
+            ButtonTheme::Action { normal, .. } => Style::default().fg(normal),
+            ButtonTheme::Sequence { normal, .. } => Style::default().fg(normal),
+            ButtonTheme::Dialog { normal, .. } => Style::default().fg(normal),
+            ButtonTheme::Step {
+                enabled_bg,
+                enabled_fg,
+                ..
+            } => Style::default()
+                .bg(enabled_bg)
+                .fg(enabled_fg)
+                .add_modifier(Modifier::BOLD),
         }
     }
 }
@@ -264,22 +501,19 @@ mod tests {
         let rect = create_test_rect();
         let layout = ActionButtonLayout::new(&rect);
 
-        // With cell_padding = 0, ranges are calculated based on actual text lengths
-        let expected_run_end = 0 + RUN_BUTTON_TEXT.len() - 1;
-        let expected_cat_start = expected_run_end + 1 + BUTTON_SPACING.len();
-        let expected_cat_end = expected_cat_start + CAT_BUTTON_TEXT.len() - 1;
-        let expected_edit_start = expected_cat_end + 1 + BUTTON_SPACING.len();
-        let expected_edit_end = expected_edit_start + EDIT_BUTTON_TEXT.len() - 1;
+        // Test that ranges are calculated correctly using our semantic compression
+        const ACTION_BUTTON_TEXTS: &[&str] = &[
+            RUN_BUTTON_TEXT,
+            CAT_BUTTON_TEXT,
+            EDIT_BUTTON_TEXT,
+            DELETE_BUTTON_TEXT,
+        ];
+        let expected_ranges = calculate_sequential_button_ranges(ACTION_BUTTON_TEXTS, 0);
 
-        assert_eq!(layout.run_range, (0, expected_run_end as u16));
-        assert_eq!(
-            layout.cat_range,
-            (expected_cat_start as u16, expected_cat_end as u16)
-        );
-        assert_eq!(
-            layout.edit_range,
-            (expected_edit_start as u16, expected_edit_end as u16)
-        );
+        assert_eq!(layout.run_range(), expected_ranges[0]);
+        assert_eq!(layout.cat_range(), expected_ranges[1]);
+        assert_eq!(layout.edit_range(), expected_ranges[2]);
+        assert_eq!(layout.delete_range(), expected_ranges[3]);
     }
 
     #[test]
@@ -332,28 +566,17 @@ mod tests {
     fn test_sequence_button_layout_creation() {
         let layout = SequenceButtonLayout::new(50);
 
-        let expected_run_sequence_end = RUN_SEQUENCE_BUTTON_TEXT.len() - 1;
-        let expected_add_as_task_start = expected_run_sequence_end + 1 + BUTTON_SPACING.len();
-        let expected_add_as_task_end =
-            expected_add_as_task_start + ADD_AS_TASK_BUTTON_TEXT.len() - 1;
-        let expected_clear_start = expected_add_as_task_end + 1 + BUTTON_SPACING.len();
-        let expected_clear_end = expected_clear_start + CLEAR_BUTTON_TEXT.len() - 1;
+        // Test that ranges are calculated correctly using our semantic compression
+        const SEQUENCE_BUTTON_TEXTS: &[&str] = &[
+            RUN_SEQUENCE_BUTTON_TEXT,
+            ADD_AS_TASK_BUTTON_TEXT,
+            CLEAR_BUTTON_TEXT,
+        ];
+        let expected_ranges = calculate_sequential_button_ranges(SEQUENCE_BUTTON_TEXTS, 0);
 
-        assert_eq!(
-            layout.run_sequence_range,
-            (0, expected_run_sequence_end as u16)
-        );
-        assert_eq!(
-            layout.add_as_task_range,
-            (
-                expected_add_as_task_start as u16,
-                expected_add_as_task_end as u16
-            )
-        );
-        assert_eq!(
-            layout.clear_range,
-            (expected_clear_start as u16, expected_clear_end as u16)
-        );
+        assert_eq!(layout.run_sequence_range(), expected_ranges[0]);
+        assert_eq!(layout.add_as_task_range(), expected_ranges[1]);
+        assert_eq!(layout.clear_range(), expected_ranges[2]);
     }
 
     #[test]

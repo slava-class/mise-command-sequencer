@@ -7,7 +7,9 @@ use ratatui::{
 };
 
 use crate::app::App;
-use crate::ui::button_layout::{ActionButton, ButtonType, DialogButton, SequenceButton};
+use crate::ui::button_layout::{
+    ActionButton, ButtonStyleManager, ButtonTheme, ButtonType, DialogButton, SequenceButton,
+};
 use crate::ui::constants::*;
 
 fn ensure_ansi_reset(line: &str) -> String {
@@ -332,54 +334,31 @@ fn create_action_buttons_cell(app: &App, task_index: usize) -> Cell {
     // Create spans for each button with appropriate styling
     let mut spans = Vec::new();
 
-    // Run button
-    let run_style = if matches!(hover_button, Some(ActionButton::Run)) {
-        Style::default().bg(Color::Green).fg(Color::Black)
-    } else if is_selected {
-        Style::default()
-            .fg(Color::Green)
-            .add_modifier(Modifier::BOLD)
-    } else {
-        Style::default().fg(Color::Cyan)
-    };
-    spans.push(Span::styled(RUN_BUTTON_TEXT, run_style));
+    // Action buttons using semantic compression
+    let buttons = [
+        (RUN_BUTTON_TEXT, ActionButton::Run, ButtonTheme::ACTION_RUN),
+        (CAT_BUTTON_TEXT, ActionButton::Cat, ButtonTheme::ACTION_CAT),
+        (
+            EDIT_BUTTON_TEXT,
+            ActionButton::Edit,
+            ButtonTheme::ACTION_EDIT,
+        ),
+        (
+            DELETE_BUTTON_TEXT,
+            ActionButton::Delete,
+            ButtonTheme::ACTION_DELETE,
+        ),
+    ];
 
-    // Cat button
-    spans.push(Span::raw(BUTTON_SPACING));
-    let cat_style = if matches!(hover_button, Some(ActionButton::Cat)) {
-        Style::default().bg(Color::Blue).fg(Color::White)
-    } else if is_selected {
-        Style::default()
-            .fg(Color::Blue)
-            .add_modifier(Modifier::BOLD)
-    } else {
-        Style::default().fg(Color::Cyan)
-    };
-    spans.push(Span::styled(CAT_BUTTON_TEXT, cat_style));
+    for (i, (text, button_type, theme)) in buttons.iter().enumerate() {
+        if i > 0 {
+            spans.push(Span::raw(BUTTON_SPACING));
+        }
 
-    // Edit button
-    spans.push(Span::raw(BUTTON_SPACING));
-    let edit_style = if matches!(hover_button, Some(ActionButton::Edit)) {
-        Style::default().bg(Color::Magenta).fg(Color::White)
-    } else if is_selected {
-        Style::default()
-            .fg(Color::Magenta)
-            .add_modifier(Modifier::BOLD)
-    } else {
-        Style::default().fg(Color::Cyan)
-    };
-    spans.push(Span::styled(EDIT_BUTTON_TEXT, edit_style));
-
-    // Delete button
-    spans.push(Span::raw(BUTTON_SPACING));
-    let delete_style = if matches!(hover_button, Some(ActionButton::Delete)) {
-        Style::default().bg(Color::Red).fg(Color::White)
-    } else if is_selected {
-        Style::default().fg(Color::Red).add_modifier(Modifier::BOLD)
-    } else {
-        Style::default().fg(Color::Red)
-    };
-    spans.push(Span::styled(DELETE_BUTTON_TEXT, delete_style));
+        let is_hovered = matches!(hover_button, Some(bt) if bt == *button_type);
+        let style = ButtonStyleManager::create_button_style(*theme, is_hovered, is_selected, None);
+        spans.push(Span::styled(*text, style));
+    }
 
     Cell::from(Line::from(spans))
 }
@@ -425,19 +404,12 @@ fn create_step_button_cell(app: &App, task_index: usize, step_index: usize) -> C
     // Column is 8 chars, button is 7 chars, so we need 1 char padding
     // We'll left-align it with no leading padding for now
 
-    let style = if is_hovered {
-        // Hovered state - green background
-        Style::default().bg(Color::Green).fg(Color::Black)
-    } else if is_enabled {
-        // Enabled state - green background with black bold text for maximum contrast
-        Style::default()
-            .bg(Color::Green)
-            .fg(Color::Black)
-            .add_modifier(Modifier::BOLD)
-    } else {
-        // Disabled state - gray text
-        Style::default().fg(Color::DarkGray)
-    };
+    let style = ButtonStyleManager::create_button_style(
+        ButtonTheme::STEP,
+        is_hovered,
+        false,
+        Some(is_enabled),
+    );
 
     spans.push(Span::styled(text, style));
 
@@ -554,24 +526,29 @@ fn draw_delete_confirmation_dialog(f: &mut Frame, app: &mut App, task_name: &str
 fn create_dialog_buttons_line(hover_button: Option<DialogButton>) -> Vec<Span<'static>> {
     let mut spans = Vec::new();
 
-    // Delete button with hover styling
-    let delete_style = if matches!(hover_button, Some(DialogButton::Delete)) {
-        Style::default().bg(Color::Red).fg(Color::White)
-    } else {
-        Style::default().fg(Color::Red)
-    };
-    spans.push(Span::styled(DELETE_DIALOG_BUTTON_TEXT, delete_style));
+    // Dialog buttons using semantic compression
+    let buttons = [
+        (
+            DELETE_DIALOG_BUTTON_TEXT,
+            DialogButton::Delete,
+            ButtonTheme::DIALOG_DELETE,
+        ),
+        (
+            CANCEL_DIALOG_BUTTON_TEXT,
+            DialogButton::Cancel,
+            ButtonTheme::DIALOG_CANCEL,
+        ),
+    ];
 
-    // Spacing between buttons
-    spans.push(Span::styled("     ", Style::default()));
+    for (i, (text, button_type, theme)) in buttons.iter().enumerate() {
+        if i > 0 {
+            spans.push(Span::styled("     ", Style::default()));
+        }
 
-    // Cancel button with hover styling
-    let cancel_style = if matches!(hover_button, Some(DialogButton::Cancel)) {
-        Style::default().bg(Color::Gray).fg(Color::Black)
-    } else {
-        Style::default().fg(Color::Gray)
-    };
-    spans.push(Span::styled(CANCEL_DIALOG_BUTTON_TEXT, cancel_style));
+        let is_hovered = matches!(hover_button, Some(bt) if bt == *button_type);
+        let style = ButtonStyleManager::create_button_style(*theme, is_hovered, false, None);
+        spans.push(Span::styled(*text, style));
+    }
 
     spans
 }
@@ -590,35 +567,34 @@ fn create_sequence_controls_paragraph(app: &App) -> Paragraph {
     // Create spans for sequence buttons with hover effects
     let mut spans = Vec::new();
 
-    // Run sequence button
-    let run_sequence_style = if matches!(hover_button, Some(SequenceButton::RunSequence)) {
-        Style::default().bg(Color::Green).fg(Color::Black)
-    } else {
-        Style::default().fg(Color::Blue)
-    };
-    spans.push(Span::styled(RUN_SEQUENCE_BUTTON_TEXT, run_sequence_style));
+    // Sequence buttons using semantic compression
+    let buttons = [
+        (
+            RUN_SEQUENCE_BUTTON_TEXT,
+            SequenceButton::RunSequence,
+            ButtonTheme::SEQUENCE,
+        ),
+        (
+            ADD_AS_TASK_BUTTON_TEXT,
+            SequenceButton::AddAsTask,
+            ButtonTheme::SEQUENCE_ADD,
+        ),
+        (
+            CLEAR_BUTTON_TEXT,
+            SequenceButton::Clear,
+            ButtonTheme::SEQUENCE_CLEAR,
+        ),
+    ];
 
-    // Space between buttons
-    spans.push(Span::raw(BUTTON_SPACING));
+    for (i, (text, button_type, theme)) in buttons.iter().enumerate() {
+        if i > 0 {
+            spans.push(Span::raw(BUTTON_SPACING));
+        }
 
-    // Add as task button
-    let add_as_task_style = if matches!(hover_button, Some(SequenceButton::AddAsTask)) {
-        Style::default().bg(Color::Cyan).fg(Color::Black)
-    } else {
-        Style::default().fg(Color::Blue)
-    };
-    spans.push(Span::styled(ADD_AS_TASK_BUTTON_TEXT, add_as_task_style));
-
-    // Space between buttons
-    spans.push(Span::raw(BUTTON_SPACING));
-
-    // Clear button
-    let clear_style = if matches!(hover_button, Some(SequenceButton::Clear)) {
-        Style::default().bg(Color::Red).fg(Color::White)
-    } else {
-        Style::default().fg(Color::Blue)
-    };
-    spans.push(Span::styled(CLEAR_BUTTON_TEXT, clear_style));
+        let is_hovered = matches!(hover_button, Some(bt) if bt == *button_type);
+        let style = ButtonStyleManager::create_button_style(*theme, is_hovered, false, None);
+        spans.push(Span::styled(*text, style));
+    }
 
     Paragraph::new(Line::from(spans))
 }
