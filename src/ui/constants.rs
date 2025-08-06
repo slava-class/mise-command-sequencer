@@ -2,6 +2,7 @@
 
 // Action button texts
 pub const RUN_BUTTON_TEXT: &str = "[run]";
+pub const STOP_BUTTON_TEXT: &str = "[stop]";
 pub const CAT_BUTTON_TEXT: &str = "[cat]";
 pub const EDIT_BUTTON_TEXT: &str = "[edit]";
 pub const RENAME_BUTTON_TEXT: &str = "[rename]";
@@ -11,6 +12,7 @@ pub const CANCEL_BUTTON_TEXT: &str = "[cancel]";
 
 // Sequence button texts
 pub const RUN_SEQUENCE_BUTTON_TEXT: &str = "[Run sequence]";
+pub const STOP_SEQUENCE_BUTTON_TEXT: &str = "[Stop sequence]";
 pub const ADD_AS_TASK_BUTTON_TEXT: &str = "[Add as task]";
 pub const CLEAR_BUTTON_TEXT: &str = "[Clear]";
 

@@ -63,12 +63,14 @@ impl App {
             }
             AppEvent::TaskCompleted => {
                 self.task_running = false;
+                self.running_task_name = None;
                 self.running_task_handle = None;
             }
             AppEvent::TaskCancelled => {
                 // Only update state if we're not already cancelled
                 if self.task_running || self.running_task_handle.is_some() {
                     self.task_running = false;
+                    self.running_task_name = None;
                     self.running_task_handle = None;
                     self.task_output
                         .push_back("Task cancelled by user".to_string());
@@ -427,7 +429,17 @@ impl App {
 
                         if let Some(button) = action_layout.get_button_at_position(relative_col) {
                             match button {
-                                ActionButton::Run => self.run_current_task().await?,
+                                ActionButton::Run => {
+                                    if let Some(task) = self.tasks.get(actual_task_index) {
+                                        if self.is_task_running(&task.name) {
+                                            self.stop_current_task().await?;
+                                        } else if !self.is_any_task_running() {
+                                            // Set selected task to the clicked task before running
+                                            self.selected_task = actual_task_index;
+                                            self.run_current_task().await?;
+                                        }
+                                    }
+                                }
                                 ActionButton::Cat => self.show_current_task_content().await?,
                                 ActionButton::Edit => self.edit_current_task().await?,
                                 ActionButton::Rename => self.start_rename_task().await?,
@@ -464,9 +476,13 @@ impl App {
                     if let Some(button) = sequence_layout.get_button_at_position(relative_col) {
                         match button {
                             crate::ui::button_layout::SequenceButton::RunSequence => {
-                                let _ = self
-                                    .event_tx
-                                    .send(AppEvent::Sequence(SequenceEvent::RunSequence));
+                                if self.sequence_state.is_running {
+                                    self.stop_sequence().await?;
+                                } else {
+                                    let _ = self
+                                        .event_tx
+                                        .send(AppEvent::Sequence(SequenceEvent::RunSequence));
+                                }
                             }
                             crate::ui::button_layout::SequenceButton::AddAsTask => {
                                 let _ = self

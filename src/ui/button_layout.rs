@@ -387,6 +387,12 @@ impl ButtonTheme {
         hover_fg: Color::Black,
     };
 
+    pub const ACTION_STOP: Self = Self::Action {
+        normal: Color::Red,
+        hover_bg: Color::Red,
+        hover_fg: Color::White,
+    };
+
     pub const ACTION_CAT: Self = Self::Action {
         normal: Color::Cyan,
         hover_bg: Color::Blue,
@@ -429,6 +435,12 @@ impl ButtonTheme {
         hover_fg: Color::Black,
     };
 
+    pub const SEQUENCE_STOP: Self = Self::Sequence {
+        normal: Color::Red,
+        hover_bg: Color::Red,
+        hover_fg: Color::White,
+    };
+
     pub const SEQUENCE_CLEAR: Self = Self::Sequence {
         normal: Color::Blue,
         hover_bg: Color::Red,
@@ -459,6 +471,14 @@ impl ButtonTheme {
         disabled: Color::DarkGray,
         hover_bg: Color::Green,
         hover_fg: Color::Black,
+    };
+
+    pub const STEP_EXECUTING: Self = Self::Step {
+        enabled_bg: Color::Red,
+        enabled_fg: Color::White,
+        disabled: Color::DarkGray,
+        hover_bg: Color::Red,
+        hover_fg: Color::White,
     };
 }
 

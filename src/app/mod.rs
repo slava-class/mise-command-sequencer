@@ -30,6 +30,7 @@ pub struct App {
     pub table_layout: Option<TableLayout>,
     pub show_output_pane: bool,
     pub task_running: bool,
+    pub running_task_name: Option<String>,
     pub running_task_handle: Option<JoinHandle<()>>,
     pub button_hover_state: Option<ButtonHoverState>,
     pub current_visible_height: usize,
@@ -60,6 +61,7 @@ impl App {
             table_layout: None,
             show_output_pane: false,
             task_running: false,
+            running_task_name: None,
             running_task_handle: None,
             button_hover_state: None,
             current_visible_height: 0,
@@ -162,6 +164,7 @@ impl App {
         self.task_output_rx = None;
         self.show_output_pane = false;
         self.task_running = false;
+        self.running_task_name = None;
         self.running_task_handle = None;
         self.button_hover_state = None;
         self.current_visible_height = 0;
@@ -293,6 +296,16 @@ impl App {
         self.state = AppState::SequenceBuilder;
         self.rename_input = None;
         self.original_task_name = None;
+    }
+
+    pub fn is_task_running(&self, task_name: &str) -> bool {
+        self.running_task_name
+            .as_ref()
+            .is_some_and(|name| name == task_name)
+    }
+
+    pub fn is_any_task_running(&self) -> bool {
+        self.task_running || self.sequence_state.is_running
     }
 }
 

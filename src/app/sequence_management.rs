@@ -57,7 +57,7 @@ impl App {
     }
 
     fn start_sequence_execution(&mut self) -> Result<()> {
-        if self.sequence_state.is_running {
+        if self.sequence_state.is_running || self.is_any_task_running() {
             return Ok(());
         }
 
@@ -65,6 +65,7 @@ impl App {
         self.task_output.clear();
         self.show_output_pane = true;
         self.task_running = true;
+        self.running_task_name = Some("sequence".to_string());
         self.execute_current_step()?;
         Ok(())
     }
@@ -178,12 +179,18 @@ impl App {
     }
 
     pub async fn run_current_task(&mut self) -> Result<()> {
+        // Prevent running multiple tasks simultaneously
+        if self.is_any_task_running() {
+            return Ok(());
+        }
+
         if let Some(task) = self.tasks.get(self.selected_task) {
             let (output_tx, output_rx) = mpsc::unbounded_channel();
             self.task_output_rx = Some(output_rx);
             self.task_output.clear();
             self.show_output_pane = true;
             self.task_running = true;
+            self.running_task_name = Some(task.name.clone());
 
             let client = self.client.clone();
             let task_name = task.name.clone();
@@ -200,6 +207,45 @@ impl App {
 
             self.running_task_handle = Some(handle);
         }
+        Ok(())
+    }
+
+    pub async fn stop_current_task(&mut self) -> Result<()> {
+        if let Some(handle) = self.running_task_handle.take() {
+            handle.abort();
+        }
+
+        // Reset task running state
+        self.task_running = false;
+        self.running_task_name = None;
+
+        // Drop the output receiver to signal completion
+        self.task_output_rx = None;
+
+        // Add feedback to user
+        self.task_output
+            .push_back("Task stopped by user".to_string());
+
+        Ok(())
+    }
+
+    pub async fn stop_sequence(&mut self) -> Result<()> {
+        if let Some(handle) = self.running_task_handle.take() {
+            handle.abort();
+        }
+
+        // Reset sequence and task running state
+        self.sequence_state.reset_execution();
+        self.task_running = false;
+        self.running_task_name = None;
+
+        // Drop the output receiver to signal completion
+        self.task_output_rx = None;
+
+        // Add feedback to user
+        self.task_output
+            .push_back("Sequence stopped by user".to_string());
+
         Ok(())
     }
 

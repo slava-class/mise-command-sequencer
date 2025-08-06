@@ -436,8 +436,16 @@ fn create_action_buttons_cell(app: &App, task_index: usize) -> Cell {
         // Normal mode: show all action buttons but fade them if another task is being renamed
         let _is_other_task_renaming = matches!(app.state, AppState::Renaming(_));
 
+        // Determine run/stop button text and theme based on whether this specific task is running
+        let task_name = &app.tasks[task_index].name;
+        let (run_button_text, run_button_theme) = if app.is_task_running(task_name) {
+            (STOP_BUTTON_TEXT, ButtonTheme::ACTION_STOP)
+        } else {
+            (RUN_BUTTON_TEXT, ButtonTheme::ACTION_RUN)
+        };
+
         vec![
-            (RUN_BUTTON_TEXT, ActionButton::Run, ButtonTheme::ACTION_RUN),
+            (run_button_text, ActionButton::Run, run_button_theme),
             (CAT_BUTTON_TEXT, ActionButton::Cat, ButtonTheme::ACTION_CAT),
             (
                 EDIT_BUTTON_TEXT,
@@ -464,8 +472,16 @@ fn create_action_buttons_cell(app: &App, task_index: usize) -> Cell {
 
         let is_hovered = matches!(hover_button, Some(bt) if bt == *button_type);
 
+        // Check if this run button should be disabled
+        let is_run_button_disabled = *button_type == ActionButton::Run
+            && !app.is_task_running(&app.tasks[task_index].name)
+            && app.is_any_task_running();
+
         // For non-rename mode buttons when another task is being renamed, apply faded style
-        let style = if !is_renaming && matches!(app.state, AppState::Renaming(_)) {
+        // Also apply faded style to run buttons that cannot be clicked
+        let style = if (!is_renaming && matches!(app.state, AppState::Renaming(_)))
+            || is_run_button_disabled
+        {
             // Faded/disabled style
             Style::default().fg(Color::DarkGray)
         } else {
@@ -519,10 +535,24 @@ fn create_step_button_cell(app: &App, task_index: usize, step_index: usize) -> C
     // Column is 8 chars, button is 7 chars, so we need 1 char padding
     // We'll left-align it with no leading padding for now
 
+    // Check if this step is currently being executed in a sequence
+    let is_current_executing_step = app.sequence_state.is_running
+        && app.sequence_state.current_step == Some(step_index)
+        && is_enabled;
+
     // Apply faded style if in rename mode
     let style = if matches!(app.state, AppState::Renaming(_)) {
         Style::default().fg(Color::DarkGray)
+    } else if is_current_executing_step {
+        // Use red theme for currently executing step
+        ButtonStyleManager::create_button_style(
+            ButtonTheme::STEP_EXECUTING,
+            is_hovered,
+            false,
+            Some(is_enabled),
+        )
     } else {
+        // Use normal green theme for other steps
         ButtonStyleManager::create_button_style(
             ButtonTheme::STEP,
             is_hovered,
@@ -687,12 +717,19 @@ fn create_sequence_controls_paragraph(app: &App) -> Paragraph {
     // Create spans for sequence buttons with hover effects
     let mut spans = Vec::new();
 
+    // Determine run/stop sequence button text and theme based on running state
+    let (run_sequence_text, run_sequence_theme) = if app.sequence_state.is_running {
+        (STOP_SEQUENCE_BUTTON_TEXT, ButtonTheme::SEQUENCE_STOP)
+    } else {
+        (RUN_SEQUENCE_BUTTON_TEXT, ButtonTheme::SEQUENCE)
+    };
+
     // Sequence buttons using semantic compression
     let buttons = [
         (
-            RUN_SEQUENCE_BUTTON_TEXT,
+            run_sequence_text,
             SequenceButton::RunSequence,
-            ButtonTheme::SEQUENCE,
+            run_sequence_theme,
         ),
         (
             ADD_AS_TASK_BUTTON_TEXT,
@@ -713,8 +750,17 @@ fn create_sequence_controls_paragraph(app: &App) -> Paragraph {
 
         let is_hovered = matches!(hover_button, Some(bt) if bt == *button_type);
 
-        // Apply faded style if in rename mode
-        let style = if matches!(app.state, AppState::Renaming(_)) {
+        // Check if this run sequence button should be disabled
+        let is_run_sequence_disabled = *button_type == SequenceButton::RunSequence
+            && !app.sequence_state.is_running
+            && (app.task_running
+                && app
+                    .running_task_name
+                    .as_ref()
+                    .is_some_and(|name| name != "sequence"));
+
+        // Apply faded style if in rename mode or if run sequence button cannot be clicked
+        let style = if matches!(app.state, AppState::Renaming(_)) || is_run_sequence_disabled {
             Style::default().fg(Color::DarkGray)
         } else {
             ButtonStyleManager::create_button_style(*theme, is_hovered, false, None)

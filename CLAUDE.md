@@ -31,23 +31,33 @@ The core concept is a matrix interface where tasks are rows and execution steps 
 - ✅ Button hover states and visual feedback
 - ✅ Auto-hiding task list optimization
 - ✅ Scrolling support for large task lists
+- ✅ Dynamic run/stop buttons with per-task state tracking
+- ✅ Visual execution feedback (red stop buttons, current step highlighting)
+- ✅ Concurrency control preventing simultaneous task execution
+- ✅ Smart button state management (greyed out when unavailable)
 
 The application now features a complete matrix-style interface:
 
 ```
 ┌─ Available Tasks ─────────────────────────────────────────────────────────┐
-│ Task Name     │ Step 1 │ Step 2 │ Step 3 │ [Run sequence] [Clear]         │
-│ > build       │   ●    │        │   ●    │ [run] [cat] [edit]             │
+│ Task Name     │ Step 1 │ Step 2 │ Step 3 │ [Stop sequence] [Clear]        │
+│ > build       │   ●    │   ●̂    │   ●    │ [stop] [cat] [edit]            │
 │   test        │        │   ●    │        │ [run] [cat] [edit]             │
 │   deploy      │        │        │   ●    │ [run] [cat] [edit]             │
 └───────────────────────────────────────────────────────────────────────────┘
 ┌─ Task Output ─────────────────────────────────────────────────────────────┐
-│ Step 1/3: Running 'build'...                                              │
+│ Step 2/3: Running 'build'...                                              │
 │ [build output here]                                                       │
 └───────────────────────────────────────────────────────────────────────────┘
 ┌─ Controls ────────────────────────────────────────────────────────────────────────────────────────────────┐
 │ ↑/↓: Navigate | 1/2/3: Toggle step | Enter: Run sequence | Shift-Enter: Run current step | q: Quit        │
 └───────────────────────────────────────────────────────────────────────────────────────────────────────────┘
+
+Visual States:
+• Green steps (●): Task assigned to step
+• Red steps (●̂): Currently executing step  
+• Red buttons: Stop actions ([stop], [Stop sequence])
+• Greyed buttons: Unavailable actions (other tasks running)
 ```
 
 ## Controls
@@ -63,10 +73,24 @@ The application now features a complete matrix-style interface:
 - `q`: Quit application
 
 ### Mouse
-- **Click buttons**: Direct interaction with [run], [cat], [edit] task buttons
-- **Click sequence controls**: [Run sequence], [Copy as task], [Clear] buttons
+- **Click buttons**: Direct interaction with task action buttons
+  - `[run]`: Start task execution (cyan/blue) 
+  - `[stop]`: Stop running task (red)
+  - `[cat]`, `[edit]`: Task information and editing (cyan)
+- **Click sequence controls**: [Run sequence], [Stop sequence], [Add as task], [Clear] buttons
+  - Dynamic text and colors based on execution state
+  - Greyed out when unavailable (prevents conflicts)
+- **Click step toggles**: Enable/disable tasks for specific sequence steps
+  - Green background: Task assigned to step
+  - Red background: Currently executing step
 - **Scroll**: Navigate through task lists with mouse wheel
 - **Hover**: Visual feedback on interactive elements
+
+### Visual Feedback
+- **Red buttons**: Indicate stop actions for running processes
+- **Greyed buttons**: Show unavailable actions (prevents simultaneous execution)
+- **Red step indicators**: Highlight currently executing sequence step
+- **Per-task state**: Each task shows its individual running state independently
 
 ## Architecture Overview
 
