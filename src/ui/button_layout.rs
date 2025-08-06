@@ -54,8 +54,8 @@ pub struct ActionButtonLayout {
 impl ActionButtonLayout {
     pub fn new(_actions_rect: &Rect) -> Self {
         // Calculate positions based on actual string lengths
-        // Account for potential cell padding by adding an offset
-        let cell_padding = 2; // Table cells typically have 1 character padding
+        // No padding - buttons start at position 0 in the cell
+        let cell_padding = 0;
 
         let run_start = cell_padding;
         let run_end = run_start + RUN_BUTTON_TEXT.len() - 1;
@@ -179,35 +179,49 @@ pub fn get_dialog_button_at_position(
 }
 
 pub struct StepButtonLayout {
-    pub step_ranges: Vec<(u16, u16)>, // (start_col, end_col) for each step button
+    pub step_1_range: (u16, u16),
+    pub step_2_range: (u16, u16),
+    pub step_3_range: (u16, u16),
 }
 
 impl StepButtonLayout {
-    pub fn new(step_rects: &[Rect]) -> Self {
-        let mut step_ranges = Vec::new();
+    pub fn new(_step_rect: &Rect) -> Self {
+        use crate::ui::constants::{STEP_1_TEXT, STEP_2_TEXT, STEP_3_TEXT};
 
-        for _rect in step_rects {
-            // Step buttons are centered in their cells with 7 characters
-            // Account for typical cell padding
-            let cell_padding = 1;
-            let button_width = 7;
-            let start_col = cell_padding;
-            let end_col = start_col + button_width - 1;
+        // Step buttons are rendered as spans: [step_text] + [space]
+        // Follow the exact same pattern as ActionButtonLayout
+        let cell_padding = 0; // Start at position 0 like we determined works
 
-            step_ranges.push((start_col, end_col));
+        let step_1_start = cell_padding;
+        let step_1_end = step_1_start + STEP_1_TEXT.len() - 1;
+
+        let step_2_start = cell_padding;
+        let step_2_end = step_2_start + STEP_2_TEXT.len() - 1;
+
+        let step_3_start = cell_padding;
+        let step_3_end = step_3_start + STEP_3_TEXT.len() - 1;
+
+        Self {
+            step_1_range: (step_1_start as u16, step_1_end as u16),
+            step_2_range: (step_2_start as u16, step_2_end as u16),
+            step_3_range: (step_3_start as u16, step_3_end as u16),
         }
-
-        Self { step_ranges }
     }
 
-    pub fn get_step_at_position(&self, step_index: usize, relative_col: u16) -> Option<usize> {
-        if step_index < self.step_ranges.len() {
-            let (start, end) = self.step_ranges[step_index];
-            if (start..=end).contains(&relative_col) {
-                Some(step_index)
-            } else {
-                None
-            }
+    pub fn get_step_button_at_position(
+        &self,
+        step_index: usize,
+        relative_col: u16,
+    ) -> Option<usize> {
+        let range = match step_index {
+            0 => self.step_1_range,
+            1 => self.step_2_range,
+            2 => self.step_3_range,
+            _ => return None,
+        };
+
+        if (range.0..=range.1).contains(&relative_col) {
+            Some(step_index)
         } else {
             None
         }
@@ -250,14 +264,14 @@ mod tests {
         let rect = create_test_rect();
         let layout = ActionButtonLayout::new(&rect);
 
-        // With cell_padding = 2, ranges are calculated based on actual text lengths
-        let expected_run_end = 2 + RUN_BUTTON_TEXT.len() - 1;
+        // With cell_padding = 0, ranges are calculated based on actual text lengths
+        let expected_run_end = 0 + RUN_BUTTON_TEXT.len() - 1;
         let expected_cat_start = expected_run_end + 1 + BUTTON_SPACING.len();
         let expected_cat_end = expected_cat_start + CAT_BUTTON_TEXT.len() - 1;
         let expected_edit_start = expected_cat_end + 1 + BUTTON_SPACING.len();
         let expected_edit_end = expected_edit_start + EDIT_BUTTON_TEXT.len() - 1;
 
-        assert_eq!(layout.run_range, (2, expected_run_end as u16));
+        assert_eq!(layout.run_range, (0, expected_run_end as u16));
         assert_eq!(
             layout.cat_range,
             (expected_cat_start as u16, expected_cat_end as u16)
@@ -273,10 +287,10 @@ mod tests {
         let rect = create_test_rect();
         let layout = ActionButtonLayout::new(&rect);
 
-        // Test run button range (2-6)
+        // Test run button range (0-4)
+        assert_eq!(layout.get_button_at_position(0), Some(ActionButton::Run));
         assert_eq!(layout.get_button_at_position(2), Some(ActionButton::Run));
         assert_eq!(layout.get_button_at_position(4), Some(ActionButton::Run));
-        assert_eq!(layout.get_button_at_position(6), Some(ActionButton::Run));
     }
 
     #[test]
@@ -284,10 +298,10 @@ mod tests {
         let rect = create_test_rect();
         let layout = ActionButtonLayout::new(&rect);
 
-        // Test cat button range (8-12)
+        // Test cat button range (6-10)
+        assert_eq!(layout.get_button_at_position(6), Some(ActionButton::Cat));
         assert_eq!(layout.get_button_at_position(8), Some(ActionButton::Cat));
         assert_eq!(layout.get_button_at_position(10), Some(ActionButton::Cat));
-        assert_eq!(layout.get_button_at_position(12), Some(ActionButton::Cat));
     }
 
     #[test]
@@ -295,10 +309,10 @@ mod tests {
         let rect = create_test_rect();
         let layout = ActionButtonLayout::new(&rect);
 
-        // Test edit button range (14-19)
-        assert_eq!(layout.get_button_at_position(14), Some(ActionButton::Edit));
+        // Test edit button range (12-17)
+        assert_eq!(layout.get_button_at_position(12), Some(ActionButton::Edit));
+        assert_eq!(layout.get_button_at_position(15), Some(ActionButton::Edit));
         assert_eq!(layout.get_button_at_position(17), Some(ActionButton::Edit));
-        assert_eq!(layout.get_button_at_position(19), Some(ActionButton::Edit));
     }
 
     #[test]
@@ -307,9 +321,10 @@ mod tests {
         let layout = ActionButtonLayout::new(&rect);
 
         // Test positions outside button ranges
-        assert_eq!(layout.get_button_at_position(7), None); // Between run and cat
-        assert_eq!(layout.get_button_at_position(13), None); // Between cat and edit
-        assert_eq!(layout.get_button_at_position(20), None); // After edit
+        assert_eq!(layout.get_button_at_position(5), None); // Between run and cat
+        assert_eq!(layout.get_button_at_position(11), None); // Between cat and edit
+        assert_eq!(layout.get_button_at_position(18), None); // Between edit and delete
+        assert_eq!(layout.get_button_at_position(24), None); // After delete
         assert_eq!(layout.get_button_at_position(100), None); // Way outside
     }
 

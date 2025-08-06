@@ -123,8 +123,29 @@ fn draw_matrix_interface(app: &mut App, f: &mut Frame, area: Rect) {
         let mut cells = Vec::new();
         let actual_index = app.scroll_offset + visible_index;
 
-        // Task name cell with selection indicator
-        let task_name_style = if actual_index == app.selected_task {
+        // Check if any button for this task is being hovered
+        let is_task_hovered = if let Some(hover_state) = &app.button_hover_state {
+            match hover_state.button_type {
+                ButtonType::Action {
+                    task_index: hovered_task_index,
+                    ..
+                } => hovered_task_index == actual_index,
+                ButtonType::Step {
+                    task_index: hovered_task_index,
+                    ..
+                } => hovered_task_index == actual_index,
+                _ => false,
+            }
+        } else {
+            false
+        };
+
+        // Task name cell with selection indicator and hover state
+        let task_name_style = if is_task_hovered {
+            Style::default()
+                .fg(Color::Green)
+                .add_modifier(Modifier::BOLD)
+        } else if actual_index == app.selected_task {
             Style::default()
                 .fg(Color::Yellow)
                 .add_modifier(Modifier::BOLD)
@@ -156,7 +177,7 @@ fn draw_matrix_interface(app: &mut App, f: &mut Frame, area: Rect) {
     // Create the table with proper column constraints
     let mut constraints = vec![Constraint::Min(20)]; // Task name column
     for _ in 0..num_steps {
-        constraints.push(Constraint::Length(8)); // Step columns (8 chars to fit "Sequence" header)
+        constraints.push(Constraint::Length(7)); // Step columns (8 chars to fit "Sequence" header)
     }
     constraints.push(Constraint::Min(20)); // Actions column
 
@@ -397,7 +418,13 @@ fn create_step_button_cell(app: &App, task_index: usize, step_index: usize) -> C
         STEP_DISABLED_TEXT
     };
 
-    // Determine the style
+    // Create spans with explicit positioning like action buttons
+    let mut spans = Vec::new();
+
+    // Add padding to position the button within the 8-character column
+    // Column is 8 chars, button is 7 chars, so we need 1 char padding
+    // We'll left-align it with no leading padding for now
+
     let style = if is_hovered {
         // Hovered state - green background
         Style::default().bg(Color::Green).fg(Color::Black)
@@ -412,7 +439,12 @@ fn create_step_button_cell(app: &App, task_index: usize, step_index: usize) -> C
         Style::default().fg(Color::DarkGray)
     };
 
-    Cell::from(text).style(style)
+    spans.push(Span::styled(text, style));
+
+    // Add trailing space to fill the 8-character column (7-char button + 1 space)
+    // spans.push(Span::raw(" "));
+
+    Cell::from(Line::from(spans))
 }
 
 fn draw_delete_confirmation_dialog(f: &mut Frame, app: &mut App, task_name: &str) {

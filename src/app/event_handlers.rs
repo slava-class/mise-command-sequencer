@@ -7,7 +7,7 @@ use crate::models::app_event::ScrollDirection;
 use crate::models::{AppEvent, AppState, SequenceEvent};
 use crate::ui::button_layout::{
     get_dialog_button_at_position, ActionButton, ActionButtonLayout, ButtonHoverState, ButtonType,
-    DialogButton, SequenceButtonLayout,
+    DialogButton, SequenceButtonLayout, StepButtonLayout,
 };
 use crate::ui::constants::*;
 
@@ -493,7 +493,18 @@ impl App {
                     let relative_col = col - controls_start_col;
                     let sequence_layout = SequenceButtonLayout::new(0);
 
-                    if let Some(button) = sequence_layout.get_button_at_position(relative_col) {
+                    // Try the current position and the position offset by 1 to handle coordinate mismatches
+                    let button = sequence_layout
+                        .get_button_at_position(relative_col)
+                        .or_else(|| {
+                            if relative_col > 0 {
+                                sequence_layout.get_button_at_position(relative_col - 1)
+                            } else {
+                                None
+                            }
+                        });
+
+                    if let Some(button) = button {
                         new_hover_state = Some(ButtonHoverState::new(
                             ButtonType::Sequence(button),
                             row,
@@ -509,16 +520,20 @@ impl App {
             let actual_task_index = self.scroll_offset + visible_task_index;
 
             if actual_task_index < self.tasks.len() {
-                // Check step columns (1, 2, 3) first
+                // Check step columns using StepButtonLayout like action buttons
                 let num_steps = 3;
                 for step in 0..num_steps {
                     let column_index = step + 1; // Steps start at column 1
                     if column_index < table_layout.column_rects.len() {
                         let column_rect = table_layout.column_rects[column_index];
                         if col >= column_rect.x && col < column_rect.x + column_rect.width {
-                            // Check if mouse is over the step button area (7 characters wide, centered in 8-char column)
+                            let step_layout = StepButtonLayout::new(&column_rect);
                             let relative_col = col - column_rect.x;
-                            if relative_col <= 7 {
+
+                            if step_layout
+                                .get_step_button_at_position(step, relative_col)
+                                .is_some()
+                            {
                                 new_hover_state = Some(ButtonHoverState::new(
                                     ButtonType::Step {
                                         step_index: step,
