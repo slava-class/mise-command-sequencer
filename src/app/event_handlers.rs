@@ -527,100 +527,146 @@ impl App {
 
         let table_start_row = table_layout.table_area.y;
 
-        // Check for sequence button hover in the title area
-        if row == table_start_row {
-            if let Some((controls_start_col, controls_width)) =
-                self.calculate_sequence_controls_position(table_layout)
-            {
-                if col >= controls_start_col && col < controls_start_col + controls_width as u16 {
-                    let relative_col = col - controls_start_col;
-                    let sequence_layout = SequenceButtonLayout::new(0);
+        // If in rename mode, only allow hover on Save/Cancel buttons for the task being renamed
+        if let AppState::Renaming(ref renaming_task) = self.state {
+            // Only check for action button hover in task rows for the task being renamed
+            if row >= table_start_row + 2 {
+                let visible_task_index = (row - table_start_row - 2) as usize;
+                let actual_task_index = self.scroll_offset + visible_task_index;
 
-                    // Try the current position and the position offset by 1 to handle coordinate mismatches
-                    let button = sequence_layout
-                        .get_button_at_position(relative_col)
-                        .or_else(|| {
-                            if relative_col > 0 {
-                                sequence_layout.get_button_at_position(relative_col - 1)
-                            } else {
-                                None
-                            }
-                        });
+                if actual_task_index < self.tasks.len() {
+                    let task_name = &self.tasks[actual_task_index].name;
 
-                    if let Some(button) = button {
-                        new_hover_state = Some(ButtonHoverState::new(
-                            ButtonType::Sequence(button),
-                            row,
-                            col,
-                        ));
-                    }
-                }
-            }
-        }
-        // Check for action button hover in task rows
-        else if row >= table_start_row + 2 {
-            let visible_task_index = (row - table_start_row - 2) as usize;
-            let actual_task_index = self.scroll_offset + visible_task_index;
+                    // Only process hover if this is the task being renamed
+                    if task_name == renaming_task {
+                        // Check actions column (last column) for Save/Cancel buttons
+                        if let Some(actions_rect) = table_layout.column_rects.last() {
+                            if col >= actions_rect.x && col < actions_rect.x + actions_rect.width {
+                                let action_layout =
+                                    ActionButtonLayout::new_with_mode(actions_rect, true); // Always rename mode
+                                let relative_col = col - actions_rect.x;
 
-            if actual_task_index < self.tasks.len() {
-                // Check step columns using StepButtonLayout like action buttons
-                let num_steps = 3;
-                for step in 0..num_steps {
-                    let column_index = step + 1; // Steps start at column 1
-                    if column_index < table_layout.column_rects.len() {
-                        let column_rect = table_layout.column_rects[column_index];
-                        if col >= column_rect.x && col < column_rect.x + column_rect.width {
-                            let step_layout = StepButtonLayout::new(&column_rect);
-                            let relative_col = col - column_rect.x;
-
-                            if step_layout
-                                .get_step_button_at_position(step, relative_col)
-                                .is_some()
-                            {
-                                new_hover_state = Some(ButtonHoverState::new(
-                                    ButtonType::Step {
-                                        step_index: step,
-                                        task_index: actual_task_index,
-                                    },
-                                    row,
-                                    col,
-                                ));
-                                break;
-                            }
-                        }
-                    }
-                }
-
-                // If no step button hover, check actions column (last column)
-                if new_hover_state.is_none() {
-                    if let Some(actions_rect) = table_layout.column_rects.last() {
-                        if col >= actions_rect.x && col < actions_rect.x + actions_rect.width {
-                            // Check if this task is being renamed to use the correct button layout
-                            let task_name = &self.tasks[actual_task_index].name;
-                            let is_task_being_renamed = matches!(&self.state, AppState::Renaming(renaming_task) if renaming_task == task_name);
-
-                            let action_layout = ActionButtonLayout::new_with_mode(
-                                actions_rect,
-                                is_task_being_renamed,
-                            );
-                            let relative_col = col - actions_rect.x;
-
-                            if let Some(button) = action_layout.get_button_at_position(relative_col)
-                            {
-                                new_hover_state = Some(ButtonHoverState::new(
-                                    ButtonType::Action {
-                                        button,
-                                        task_index: actual_task_index,
-                                    },
-                                    row,
-                                    col,
-                                ));
+                                if let Some(button) =
+                                    action_layout.get_button_at_position(relative_col)
+                                {
+                                    // Only allow Save/Cancel buttons
+                                    if matches!(button, ActionButton::Save | ActionButton::Cancel) {
+                                        new_hover_state = Some(ButtonHoverState::new(
+                                            ButtonType::Action {
+                                                button,
+                                                task_index: actual_task_index,
+                                            },
+                                            row,
+                                            col,
+                                        ));
+                                    }
+                                }
                             }
                         }
                     }
                 }
             }
-        }
+            // Skip all other hover checks when in rename mode
+        } else {
+            // Normal mode: check all buttons
+
+            // Check for sequence button hover in the title area
+            if row == table_start_row {
+                if let Some((controls_start_col, controls_width)) =
+                    self.calculate_sequence_controls_position(table_layout)
+                {
+                    if col >= controls_start_col && col < controls_start_col + controls_width as u16
+                    {
+                        let relative_col = col - controls_start_col;
+                        let sequence_layout = SequenceButtonLayout::new(0);
+
+                        // Try the current position and the position offset by 1 to handle coordinate mismatches
+                        let button = sequence_layout
+                            .get_button_at_position(relative_col)
+                            .or_else(|| {
+                                if relative_col > 0 {
+                                    sequence_layout.get_button_at_position(relative_col - 1)
+                                } else {
+                                    None
+                                }
+                            });
+
+                        if let Some(button) = button {
+                            new_hover_state = Some(ButtonHoverState::new(
+                                ButtonType::Sequence(button),
+                                row,
+                                col,
+                            ));
+                        }
+                    }
+                }
+            }
+            // Check for action button hover in task rows
+            else if row >= table_start_row + 2 {
+                let visible_task_index = (row - table_start_row - 2) as usize;
+                let actual_task_index = self.scroll_offset + visible_task_index;
+
+                if actual_task_index < self.tasks.len() {
+                    // Check step columns using StepButtonLayout like action buttons
+                    let num_steps = 3;
+                    for step in 0..num_steps {
+                        let column_index = step + 1; // Steps start at column 1
+                        if column_index < table_layout.column_rects.len() {
+                            let column_rect = table_layout.column_rects[column_index];
+                            if col >= column_rect.x && col < column_rect.x + column_rect.width {
+                                let step_layout = StepButtonLayout::new(&column_rect);
+                                let relative_col = col - column_rect.x;
+
+                                if step_layout
+                                    .get_step_button_at_position(step, relative_col)
+                                    .is_some()
+                                {
+                                    new_hover_state = Some(ButtonHoverState::new(
+                                        ButtonType::Step {
+                                            step_index: step,
+                                            task_index: actual_task_index,
+                                        },
+                                        row,
+                                        col,
+                                    ));
+                                    break;
+                                }
+                            }
+                        }
+                    }
+
+                    // If no step button hover, check actions column (last column)
+                    if new_hover_state.is_none() {
+                        if let Some(actions_rect) = table_layout.column_rects.last() {
+                            if col >= actions_rect.x && col < actions_rect.x + actions_rect.width {
+                                // Check if this task is being renamed to use the correct button layout
+                                let task_name = &self.tasks[actual_task_index].name;
+                                let is_task_being_renamed = matches!(&self.state, AppState::Renaming(renaming_task) if renaming_task == task_name);
+
+                                let action_layout = ActionButtonLayout::new_with_mode(
+                                    actions_rect,
+                                    is_task_being_renamed,
+                                );
+                                let relative_col = col - actions_rect.x;
+
+                                if let Some(button) =
+                                    action_layout.get_button_at_position(relative_col)
+                                {
+                                    new_hover_state = Some(ButtonHoverState::new(
+                                        ButtonType::Action {
+                                            button,
+                                            task_index: actual_task_index,
+                                        },
+                                        row,
+                                        col,
+                                    ));
+                                }
+                            }
+                        }
+                    }
+                }
+            } // End step/action button checks
+        } // End of else block (normal mode)
 
         // Only update hover state if it actually changed
         if self.button_hover_state != new_hover_state {
