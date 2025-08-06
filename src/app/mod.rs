@@ -3,6 +3,7 @@ use ratatui::layout::Rect;
 use std::{collections::VecDeque, time::Instant};
 use tokio::sync::mpsc;
 use tokio::task::JoinHandle;
+use tui_input::Input;
 
 use crate::mise::MiseClient;
 use crate::models::{AppEvent, AppState, MiseTask, MiseTaskInfo, SequenceState};
@@ -37,6 +38,8 @@ pub struct App {
     pub output_follow_mode: bool,
     pub pending_delete_task: Option<String>,
     pub delete_dialog_area: Option<Rect>,
+    pub rename_input: Option<Input>,
+    pub original_task_name: Option<String>,
 }
 
 impl App {
@@ -65,6 +68,8 @@ impl App {
             output_follow_mode: true,
             pending_delete_task: None,
             delete_dialog_area: None,
+            rename_input: None,
+            original_task_name: None,
         }
     }
 
@@ -163,6 +168,8 @@ impl App {
         self.output_scroll_offset = 0;
         self.current_output_visible_height = 0;
         self.output_follow_mode = true;
+        self.rename_input = None;
+        self.original_task_name = None;
     }
 
     pub fn scroll_output_up(&mut self, lines: usize) {
@@ -212,6 +219,80 @@ impl App {
         if self.output_follow_mode {
             self.auto_scroll_output_to_bottom();
         }
+    }
+
+    pub async fn start_rename_task(&mut self) -> Result<()> {
+        if let Some(task) = self.tasks.get(self.selected_task) {
+            // Initialize rename mode
+            self.state = AppState::Renaming(task.name.clone());
+            self.original_task_name = Some(task.name.clone());
+            self.rename_input = Some(Input::new(task.name.clone()));
+        }
+        Ok(())
+    }
+
+    pub async fn save_rename(&mut self) -> Result<()> {
+        let new_name = if let Some(ref input) = self.rename_input {
+            input.value().trim().to_string()
+        } else {
+            self.cancel_rename();
+            return Ok(());
+        };
+
+        // Validate the new name
+        if new_name.is_empty() {
+            // Cancel if empty name
+            self.cancel_rename();
+            return Ok(());
+        }
+
+        let original_name = if let Some(ref name) = self.original_task_name {
+            name.clone()
+        } else {
+            self.cancel_rename();
+            return Ok(());
+        };
+
+        if new_name != original_name {
+            // Update the task name via MiseClient
+            match self.client.rename_task(&original_name, &new_name).await {
+                Ok(()) => {
+                    // Refresh the task list to reflect changes
+                    self.refresh_tasks().await?;
+
+                    // Check if the name was actually changed due to conflicts
+                    let final_name = self
+                        .tasks
+                        .iter()
+                        .find(|task| task.name.starts_with(&new_name))
+                        .map(|task| task.name.as_str())
+                        .unwrap_or(&new_name);
+
+                    if final_name != new_name {
+                        self.task_output.push_back(format!("Task '{original_name}' renamed to '{final_name}' (name adjusted to avoid conflicts)"));
+                    } else {
+                        self.task_output
+                            .push_back(format!("Task '{original_name}' renamed to '{final_name}'"));
+                    }
+                    self.show_output_pane = true;
+                }
+                Err(e) => {
+                    self.task_output
+                        .push_back(format!("Failed to rename task '{original_name}': {e}"));
+                    self.show_output_pane = true;
+                }
+            }
+        }
+
+        // Exit rename mode
+        self.cancel_rename();
+        Ok(())
+    }
+
+    pub fn cancel_rename(&mut self) {
+        self.state = AppState::SequenceBuilder;
+        self.rename_input = None;
+        self.original_task_name = None;
     }
 }
 

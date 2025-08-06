@@ -48,7 +48,10 @@ pub enum ActionButton {
     Run,
     Cat,
     Edit,
+    Rename,
     Delete,
+    Save,
+    Cancel,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq)]
@@ -97,12 +100,14 @@ impl ActionButtonLayout {
             RUN_BUTTON_TEXT,
             CAT_BUTTON_TEXT,
             EDIT_BUTTON_TEXT,
+            RENAME_BUTTON_TEXT,
             DELETE_BUTTON_TEXT,
         ];
         const ACTION_BUTTONS: &[ActionButton] = &[
             ActionButton::Run,
             ActionButton::Cat,
             ActionButton::Edit,
+            ActionButton::Rename,
             ActionButton::Delete,
         ];
 
@@ -128,8 +133,11 @@ impl ActionButtonLayout {
     pub fn edit_range(&self) -> ButtonRange {
         self.ranges[2]
     }
-    pub fn delete_range(&self) -> ButtonRange {
+    pub fn rename_range(&self) -> ButtonRange {
         self.ranges[3]
+    }
+    pub fn delete_range(&self) -> ButtonRange {
+        self.ranges[4]
     }
 }
 
@@ -334,10 +342,28 @@ impl ButtonTheme {
         hover_fg: Color::White,
     };
 
+    pub const ACTION_RENAME: Self = Self::Action {
+        normal: Color::Yellow,
+        hover_bg: Color::Yellow,
+        hover_fg: Color::Black,
+    };
+
     pub const ACTION_DELETE: Self = Self::Action {
         normal: Color::Red,
         hover_bg: Color::Red,
         hover_fg: Color::White,
+    };
+
+    pub const ACTION_SAVE: Self = Self::Action {
+        normal: Color::Green,
+        hover_bg: Color::Green,
+        hover_fg: Color::Black,
+    };
+
+    pub const ACTION_CANCEL: Self = Self::Action {
+        normal: Color::Gray,
+        hover_bg: Color::Gray,
+        hover_fg: Color::Black,
     };
 
     pub const SEQUENCE: Self = Self::Sequence {
@@ -506,6 +532,7 @@ mod tests {
             RUN_BUTTON_TEXT,
             CAT_BUTTON_TEXT,
             EDIT_BUTTON_TEXT,
+            RENAME_BUTTON_TEXT,
             DELETE_BUTTON_TEXT,
         ];
         let expected_ranges = calculate_sequential_button_ranges(ACTION_BUTTON_TEXTS, 0);
@@ -513,7 +540,8 @@ mod tests {
         assert_eq!(layout.run_range(), expected_ranges[0]);
         assert_eq!(layout.cat_range(), expected_ranges[1]);
         assert_eq!(layout.edit_range(), expected_ranges[2]);
-        assert_eq!(layout.delete_range(), expected_ranges[3]);
+        assert_eq!(layout.rename_range(), expected_ranges[3]);
+        assert_eq!(layout.delete_range(), expected_ranges[4]);
     }
 
     #[test]
@@ -550,6 +578,26 @@ mod tests {
     }
 
     #[test]
+    fn test_get_button_at_position_rename() {
+        let rect = create_test_rect();
+        let layout = ActionButtonLayout::new(&rect);
+
+        // Test rename button range (19-26)
+        assert_eq!(
+            layout.get_button_at_position(19),
+            Some(ActionButton::Rename)
+        );
+        assert_eq!(
+            layout.get_button_at_position(22),
+            Some(ActionButton::Rename)
+        );
+        assert_eq!(
+            layout.get_button_at_position(26),
+            Some(ActionButton::Rename)
+        );
+    }
+
+    #[test]
     fn test_get_button_at_position_none() {
         let rect = create_test_rect();
         let layout = ActionButtonLayout::new(&rect);
@@ -557,8 +605,9 @@ mod tests {
         // Test positions outside button ranges
         assert_eq!(layout.get_button_at_position(5), None); // Between run and cat
         assert_eq!(layout.get_button_at_position(11), None); // Between cat and edit
-        assert_eq!(layout.get_button_at_position(18), None); // Between edit and delete
-        assert_eq!(layout.get_button_at_position(24), None); // After delete
+        assert_eq!(layout.get_button_at_position(18), None); // Between edit and rename
+        assert_eq!(layout.get_button_at_position(27), None); // Between rename and delete
+        assert_eq!(layout.get_button_at_position(35), None); // After delete
         assert_eq!(layout.get_button_at_position(100), None); // Way outside
     }
 
@@ -655,10 +704,14 @@ mod tests {
         // Test that all ActionButton variants are different
         assert_ne!(ActionButton::Run, ActionButton::Cat);
         assert_ne!(ActionButton::Run, ActionButton::Edit);
+        assert_ne!(ActionButton::Run, ActionButton::Rename);
+        assert_ne!(ActionButton::Run, ActionButton::Delete);
+        assert_ne!(ActionButton::Run, ActionButton::Save);
+        assert_ne!(ActionButton::Run, ActionButton::Cancel);
         assert_ne!(ActionButton::Cat, ActionButton::Edit);
-        assert_ne!(ActionButton::Delete, ActionButton::Run);
-        assert_ne!(ActionButton::Delete, ActionButton::Cat);
-        assert_ne!(ActionButton::Delete, ActionButton::Edit);
+        assert_ne!(ActionButton::Cat, ActionButton::Rename);
+        assert_ne!(ActionButton::Delete, ActionButton::Rename);
+        assert_ne!(ActionButton::Save, ActionButton::Cancel);
     }
 
     #[test]

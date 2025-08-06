@@ -15,6 +15,7 @@ impl App {
             AppState::Detail(task_name) => task_detail::draw_task_detail(self, f, task_name),
             AppState::Running(task_name) => task_running::draw_task_running(self, f, task_name),
             AppState::SequenceBuilder => sequence_builder::draw_sequence_builder(self, f),
+            AppState::Renaming(_) => sequence_builder::draw_sequence_builder(self, f),
         }
     }
 }

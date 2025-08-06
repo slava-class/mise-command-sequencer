@@ -1,6 +1,7 @@
 use anyhow::Result;
 use ratatui::crossterm::event::{KeyCode, KeyEvent, KeyModifiers, MouseButton};
 use std::time::Instant;
+use tui_input::backend::crossterm::EventHandler;
 
 use super::App;
 use crate::models::app_event::ScrollDirection;
@@ -140,6 +141,30 @@ impl App {
             }
         }
 
+        // Handle rename mode first
+        if let AppState::Renaming(_) = &self.state {
+            match key {
+                KeyCode::Enter => {
+                    // Save the rename
+                    self.save_rename().await?;
+                    return Ok(());
+                }
+                KeyCode::Esc => {
+                    // Cancel the rename
+                    self.cancel_rename();
+                    return Ok(());
+                }
+                _ => {
+                    // Forward other keys to the input widget
+                    if let Some(ref mut input) = self.rename_input {
+                        let crossterm_event = ratatui::crossterm::event::Event::Key(key_event);
+                        input.handle_event(&crossterm_event);
+                    }
+                    return Ok(());
+                }
+            }
+        }
+
         match (&self.state, key) {
             (_, KeyCode::Char('q')) => self.should_quit = true,
             (_, KeyCode::Char('r')) => self.refresh_tasks().await?,
@@ -222,10 +247,15 @@ impl App {
                     .event_tx
                     .send(AppEvent::Sequence(SequenceEvent::RunSequence));
             }
-            (AppState::SequenceBuilder, KeyCode::Char('c') | KeyCode::Char('C')) => {
+            (AppState::SequenceBuilder, KeyCode::Char('l'))
+                if modifiers.contains(KeyModifiers::CONTROL) =>
+            {
                 let _ = self
                     .event_tx
                     .send(AppEvent::Sequence(SequenceEvent::ClearSequence));
+            }
+            (AppState::SequenceBuilder, KeyCode::Char('c')) => {
+                self.start_rename_task().await?;
             }
             (AppState::SequenceBuilder, KeyCode::Char('a')) => {
                 let _ = self
@@ -396,12 +426,21 @@ impl App {
                                 ActionButton::Run => self.run_current_task().await?,
                                 ActionButton::Cat => self.show_current_task_content().await?,
                                 ActionButton::Edit => self.edit_current_task().await?,
+                                ActionButton::Rename => self.start_rename_task().await?,
                                 ActionButton::Delete => {
                                     if let Some(task) = self.tasks.get(self.selected_task) {
                                         let _ = self
                                             .event_tx
                                             .send(AppEvent::DeleteTask(task.name.clone()));
                                     }
+                                }
+                                ActionButton::Save => {
+                                    // Only available in rename mode
+                                    self.save_rename().await?;
+                                }
+                                ActionButton::Cancel => {
+                                    // Only available in rename mode
+                                    self.cancel_rename();
                                 }
                             }
                         }

@@ -7,6 +7,7 @@ use ratatui::{
 };
 
 use crate::app::App;
+use crate::models::AppState;
 use crate::ui::button_layout::{
     ActionButton, ButtonStyleManager, ButtonTheme, ButtonType, DialogButton, SequenceButton,
 };
@@ -53,7 +54,7 @@ pub fn draw_sequence_builder(app: &mut App, f: &mut Frame) {
             .constraints([
                 Constraint::Min(8),    // Matrix interface
                 Constraint::Min(5),    // Task output
-                Constraint::Length(4), // Controls (2 lines + borders)
+                Constraint::Length(5), // Controls (3 lines + borders)
             ])
             .split(f.area())
     } else {
@@ -61,7 +62,7 @@ pub fn draw_sequence_builder(app: &mut App, f: &mut Frame) {
             .direction(Direction::Vertical)
             .constraints([
                 Constraint::Min(8),    // Matrix interface
-                Constraint::Length(4), // Controls (2 lines + borders)
+                Constraint::Length(5), // Controls (3 lines + borders)
             ])
             .split(f.area())
     };
@@ -142,26 +143,9 @@ fn draw_matrix_interface(app: &mut App, f: &mut Frame, area: Rect) {
             false
         };
 
-        // Task name cell with selection indicator and hover state
-        let task_name_style = if is_task_hovered {
-            Style::default()
-                .fg(Color::Green)
-                .add_modifier(Modifier::BOLD)
-        } else if actual_index == app.selected_task {
-            Style::default()
-                .fg(Color::Yellow)
-                .add_modifier(Modifier::BOLD)
-        } else {
-            Style::default()
-        };
-
-        let task_name_text = if actual_index == app.selected_task {
-            format!("> {}", task.name)
-        } else {
-            format!("  {}", task.name)
-        };
-
-        cells.push(Cell::from(task_name_text).style(task_name_style));
+        // Task name cell with selection indicator, hover state, and rename input
+        let task_name_cell = create_task_name_cell(app, actual_index, task, is_task_hovered);
+        cells.push(task_name_cell);
 
         // Step button cells
         for step in 0..num_steps {
@@ -295,8 +279,9 @@ fn draw_task_output(app: &mut App, f: &mut Frame, area: Rect) {
 
 fn draw_controls(f: &mut Frame, area: Rect) {
     let controls = Paragraph::new(vec![
-        Line::from("↑/↓: Navigate | PgUp/PgDn/Mouse wheel: Scroll | 1/2/3: Toggle step | Enter: Run sequence"),
-        Line::from("a: Add as task | x: Run task | e: Edit | D: Delete | Tab: Info | c: Clear | q: Quit | g/G/F: Output scroll"),
+        Line::from("Navigation: ↑/↓: Select task | PgUp/PgDn/Mouse wheel: Scroll | q: Quit | g/G/F: Output scroll"),
+        Line::from("Task Actions: x: Run task | e: Edit | c: Rename | D: Delete | Tab: Info"),
+        Line::from("Sequence Actions: 1/2/3: Toggle step | Enter: Run sequence | a: Add as task | Ctrl+L: Clear"),
     ])
     .block(
         Block::default()
@@ -306,6 +291,77 @@ fn draw_controls(f: &mut Frame, area: Rect) {
     .style(Style::default().fg(Color::Gray));
 
     f.render_widget(controls, area);
+}
+
+fn create_task_name_cell<'a>(
+    app: &App,
+    task_index: usize,
+    task: &crate::models::MiseTask,
+    is_task_hovered: bool,
+) -> Cell<'a> {
+    // Check if this task is being renamed
+    let is_renaming = if let AppState::Renaming(ref renaming_task) = app.state {
+        renaming_task == &task.name
+    } else {
+        false
+    };
+
+    if is_renaming {
+        // In rename mode, show the input widget
+        if let Some(ref input) = app.rename_input {
+            let prefix = if task_index == app.selected_task {
+                "> "
+            } else {
+                "  "
+            };
+            let input_text = format!("{}{}", prefix, input.value());
+
+            // Style for rename input - highlight it differently
+            let style = Style::default()
+                .fg(Color::Cyan)
+                .bg(Color::Black)
+                .add_modifier(Modifier::BOLD);
+
+            Cell::from(input_text).style(style)
+        } else {
+            // Fallback if input is not initialized
+            let prefix = if task_index == app.selected_task {
+                "> "
+            } else {
+                "  "
+            };
+            let text = format!("{}{}", prefix, task.name);
+            Cell::from(text).style(Style::default().fg(Color::Red))
+        }
+    } else {
+        // Normal mode - regular task name display
+        let task_name_style = if is_task_hovered {
+            Style::default()
+                .fg(Color::Green)
+                .add_modifier(Modifier::BOLD)
+        } else if task_index == app.selected_task {
+            Style::default()
+                .fg(Color::Yellow)
+                .add_modifier(Modifier::BOLD)
+        } else {
+            Style::default()
+        };
+
+        let task_name_text = if task_index == app.selected_task {
+            format!("> {}", task.name)
+        } else {
+            format!("  {}", task.name)
+        };
+
+        // Apply faded style if another task is being renamed
+        let style = if matches!(app.state, AppState::Renaming(_)) {
+            Style::default().fg(Color::DarkGray)
+        } else {
+            task_name_style
+        };
+
+        Cell::from(task_name_text).style(style)
+    }
 }
 
 fn create_action_buttons_cell(app: &App, task_index: usize) -> Cell {
@@ -331,24 +387,55 @@ fn create_action_buttons_cell(app: &App, task_index: usize) -> Cell {
     // Check if this task is selected
     let is_selected = app.selected_task == task_index;
 
+    // Check if we're in rename mode for this task
+    let is_renaming = if let AppState::Renaming(ref renaming_task) = app.state {
+        renaming_task == &app.tasks[task_index].name
+    } else {
+        false
+    };
+
     // Create spans for each button with appropriate styling
     let mut spans = Vec::new();
 
-    // Action buttons using semantic compression
-    let buttons = [
-        (RUN_BUTTON_TEXT, ActionButton::Run, ButtonTheme::ACTION_RUN),
-        (CAT_BUTTON_TEXT, ActionButton::Cat, ButtonTheme::ACTION_CAT),
-        (
-            EDIT_BUTTON_TEXT,
-            ActionButton::Edit,
-            ButtonTheme::ACTION_EDIT,
-        ),
-        (
-            DELETE_BUTTON_TEXT,
-            ActionButton::Delete,
-            ButtonTheme::ACTION_DELETE,
-        ),
-    ];
+    // Different buttons based on rename mode
+    let buttons = if is_renaming {
+        // In rename mode, show only save and cancel buttons for this task
+        vec![
+            (
+                SAVE_BUTTON_TEXT,
+                ActionButton::Save,
+                ButtonTheme::ACTION_SAVE,
+            ),
+            (
+                CANCEL_BUTTON_TEXT,
+                ActionButton::Cancel,
+                ButtonTheme::ACTION_CANCEL,
+            ),
+        ]
+    } else {
+        // Normal mode: show all action buttons but fade them if another task is being renamed
+        let _is_other_task_renaming = matches!(app.state, AppState::Renaming(_));
+
+        vec![
+            (RUN_BUTTON_TEXT, ActionButton::Run, ButtonTheme::ACTION_RUN),
+            (CAT_BUTTON_TEXT, ActionButton::Cat, ButtonTheme::ACTION_CAT),
+            (
+                EDIT_BUTTON_TEXT,
+                ActionButton::Edit,
+                ButtonTheme::ACTION_EDIT,
+            ),
+            (
+                RENAME_BUTTON_TEXT,
+                ActionButton::Rename,
+                ButtonTheme::ACTION_RENAME,
+            ),
+            (
+                DELETE_BUTTON_TEXT,
+                ActionButton::Delete,
+                ButtonTheme::ACTION_DELETE,
+            ),
+        ]
+    };
 
     for (i, (text, button_type, theme)) in buttons.iter().enumerate() {
         if i > 0 {
@@ -356,7 +443,15 @@ fn create_action_buttons_cell(app: &App, task_index: usize) -> Cell {
         }
 
         let is_hovered = matches!(hover_button, Some(bt) if bt == *button_type);
-        let style = ButtonStyleManager::create_button_style(*theme, is_hovered, is_selected, None);
+
+        // For non-rename mode buttons when another task is being renamed, apply faded style
+        let style = if !is_renaming && matches!(app.state, AppState::Renaming(_)) {
+            // Faded/disabled style
+            Style::default().fg(Color::DarkGray)
+        } else {
+            ButtonStyleManager::create_button_style(*theme, is_hovered, is_selected, None)
+        };
+
         spans.push(Span::styled(*text, style));
     }
 
@@ -404,12 +499,17 @@ fn create_step_button_cell(app: &App, task_index: usize, step_index: usize) -> C
     // Column is 8 chars, button is 7 chars, so we need 1 char padding
     // We'll left-align it with no leading padding for now
 
-    let style = ButtonStyleManager::create_button_style(
-        ButtonTheme::STEP,
-        is_hovered,
-        false,
-        Some(is_enabled),
-    );
+    // Apply faded style if in rename mode
+    let style = if matches!(app.state, AppState::Renaming(_)) {
+        Style::default().fg(Color::DarkGray)
+    } else {
+        ButtonStyleManager::create_button_style(
+            ButtonTheme::STEP,
+            is_hovered,
+            false,
+            Some(is_enabled),
+        )
+    };
 
     spans.push(Span::styled(text, style));
 
@@ -592,7 +692,14 @@ fn create_sequence_controls_paragraph(app: &App) -> Paragraph {
         }
 
         let is_hovered = matches!(hover_button, Some(bt) if bt == *button_type);
-        let style = ButtonStyleManager::create_button_style(*theme, is_hovered, false, None);
+
+        // Apply faded style if in rename mode
+        let style = if matches!(app.state, AppState::Renaming(_)) {
+            Style::default().fg(Color::DarkGray)
+        } else {
+            ButtonStyleManager::create_button_style(*theme, is_hovered, false, None)
+        };
+
         spans.push(Span::styled(*text, style));
     }
 

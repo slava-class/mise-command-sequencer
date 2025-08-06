@@ -4,7 +4,10 @@
 pub const RUN_BUTTON_TEXT: &str = "[run]";
 pub const CAT_BUTTON_TEXT: &str = "[cat]";
 pub const EDIT_BUTTON_TEXT: &str = "[edit]";
+pub const RENAME_BUTTON_TEXT: &str = "[rename]";
 pub const DELETE_BUTTON_TEXT: &str = "[del]";
+pub const SAVE_BUTTON_TEXT: &str = "[save]";
+pub const CANCEL_BUTTON_TEXT: &str = "[cancel]";
 
 // Sequence button texts
 pub const RUN_SEQUENCE_BUTTON_TEXT: &str = "[Run sequence]";
