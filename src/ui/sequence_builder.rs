@@ -75,9 +75,29 @@ pub fn draw_sequence_builder(app: &mut App, f: &mut Frame) {
         draw_controls(f, chunks[1]);
     }
 
-    // Position cursor over hovered button to simulate cursor pointer
+    // Position cursor appropriately based on state
     if let Some(hover_state) = &app.button_hover_state {
+        // If hovering over a button, show cursor on button
         f.set_cursor_position((hover_state.col, hover_state.row));
+    } else if let AppState::Renaming(ref renaming_task) = app.state {
+        // If in rename mode and not hovering over buttons, show cursor in input field
+        if let Some(ref input) = app.rename_input {
+            // Find the row for the task being renamed and position cursor there
+            if let Some(task_index) = app.tasks.iter().position(|t| &t.name == renaming_task) {
+                let visible_task_index = task_index.saturating_sub(app.scroll_offset);
+                if visible_task_index < app.current_visible_height {
+                    // Calculate cursor position in the task name column
+                    let table_area = app.table_layout.as_ref().map(|layout| &layout.table_area);
+                    if let Some(table_area) = table_area {
+                        let cursor_row = table_area.y + 2 + visible_task_index as u16; // Header + border + task rows
+                        let prefix_len = 2; // Both "> " and "  " are 2 characters
+                        let cursor_col =
+                            table_area.x + 1 + prefix_len + input.visual_cursor() as u16; // Border + prefix + cursor position
+                        f.set_cursor_position((cursor_col, cursor_row));
+                    }
+                }
+            }
+        }
     }
 
     // Draw confirmation dialog if there's a pending delete

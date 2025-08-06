@@ -326,7 +326,7 @@ impl App {
         }
 
         match &self.state {
-            AppState::SequenceBuilder => {
+            AppState::SequenceBuilder | AppState::Renaming(_) => {
                 self.handle_sequence_builder_click(row, col).await?;
             }
             _ => {
@@ -418,7 +418,11 @@ impl App {
                 // Check actions column (last column)
                 if let Some(actions_rect) = table_layout.column_rects.last() {
                     if col >= actions_rect.x && col < actions_rect.x + actions_rect.width {
-                        let action_layout = ActionButtonLayout::new(actions_rect);
+                        // Check if this task is being renamed to use the correct button layout
+                        let task_name = &self.tasks[actual_task_index].name;
+                        let is_task_being_renamed = matches!(&self.state, AppState::Renaming(renaming_task) if renaming_task == task_name);
+                        let action_layout =
+                            ActionButtonLayout::new_with_mode(actions_rect, is_task_being_renamed);
                         let relative_col = col - actions_rect.x;
 
                         if let Some(button) = action_layout.get_button_at_position(relative_col) {
@@ -484,7 +488,7 @@ impl App {
 
     pub async fn handle_mouse_move(&mut self, row: u16, col: u16) -> Result<()> {
         match &self.state {
-            AppState::SequenceBuilder => {
+            AppState::SequenceBuilder | AppState::Renaming(_) => {
                 self.handle_sequence_builder_hover(row, col)?;
             }
             _ => {
@@ -591,7 +595,14 @@ impl App {
                 if new_hover_state.is_none() {
                     if let Some(actions_rect) = table_layout.column_rects.last() {
                         if col >= actions_rect.x && col < actions_rect.x + actions_rect.width {
-                            let action_layout = ActionButtonLayout::new(actions_rect);
+                            // Check if this task is being renamed to use the correct button layout
+                            let task_name = &self.tasks[actual_task_index].name;
+                            let is_task_being_renamed = matches!(&self.state, AppState::Renaming(renaming_task) if renaming_task == task_name);
+
+                            let action_layout = ActionButtonLayout::new_with_mode(
+                                actions_rect,
+                                is_task_being_renamed,
+                            );
                             let relative_col = col - actions_rect.x;
 
                             if let Some(button) = action_layout.get_button_at_position(relative_col)

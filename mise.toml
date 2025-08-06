@@ -5,7 +5,7 @@ coverage = "cargo tarpaulin --config tarpaulin.toml"
 coverage-watch = "cargo watch -x 'tarpaulin --config tarpaulin.toml'"
 fmt = "trunk fmt --all"
 repomix = "bunx repomix --copy"
-"sequence-20250806-151839ftft t ft" = "mise run coverage-watch && mise run check_green"
+yay = "mise run check && mise run check_green && mise run check_green"
 
 [tools]
 rust = "latest"

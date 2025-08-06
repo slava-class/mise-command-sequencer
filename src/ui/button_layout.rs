@@ -91,31 +91,54 @@ pub enum ButtonType {
 pub struct ActionButtonLayout {
     ranges: Vec<ButtonRange>,
     buttons: Vec<ActionButton>,
+    rename_mode: bool,
 }
 
 impl ActionButtonLayout {
     pub fn new(_actions_rect: &Rect) -> Self {
-        // Define the sequence of action buttons
-        const ACTION_BUTTON_TEXTS: &[&str] = &[
-            RUN_BUTTON_TEXT,
-            CAT_BUTTON_TEXT,
-            EDIT_BUTTON_TEXT,
-            RENAME_BUTTON_TEXT,
-            DELETE_BUTTON_TEXT,
-        ];
-        const ACTION_BUTTONS: &[ActionButton] = &[
-            ActionButton::Run,
-            ActionButton::Cat,
-            ActionButton::Edit,
-            ActionButton::Rename,
-            ActionButton::Delete,
-        ];
+        Self::new_with_mode(_actions_rect, false)
+    }
 
-        let ranges = calculate_sequential_button_ranges(ACTION_BUTTON_TEXTS, 0);
+    pub fn new_with_mode(_actions_rect: &Rect, rename_mode: bool) -> Self {
+        if rename_mode {
+            // Rename mode: only show save and cancel buttons
+            const RENAME_BUTTON_TEXTS: &[&str] = &[
+                crate::ui::constants::SAVE_BUTTON_TEXT,
+                crate::ui::constants::CANCEL_BUTTON_TEXT,
+            ];
+            const RENAME_BUTTONS: &[ActionButton] = &[ActionButton::Save, ActionButton::Cancel];
 
-        Self {
-            ranges,
-            buttons: ACTION_BUTTONS.to_vec(),
+            let ranges = calculate_sequential_button_ranges(RENAME_BUTTON_TEXTS, 0);
+
+            Self {
+                ranges,
+                buttons: RENAME_BUTTONS.to_vec(),
+                rename_mode,
+            }
+        } else {
+            // Normal mode: show all action buttons
+            const ACTION_BUTTON_TEXTS: &[&str] = &[
+                RUN_BUTTON_TEXT,
+                CAT_BUTTON_TEXT,
+                EDIT_BUTTON_TEXT,
+                RENAME_BUTTON_TEXT,
+                DELETE_BUTTON_TEXT,
+            ];
+            const ACTION_BUTTONS: &[ActionButton] = &[
+                ActionButton::Run,
+                ActionButton::Cat,
+                ActionButton::Edit,
+                ActionButton::Rename,
+                ActionButton::Delete,
+            ];
+
+            let ranges = calculate_sequential_button_ranges(ACTION_BUTTON_TEXTS, 0);
+
+            Self {
+                ranges,
+                buttons: ACTION_BUTTONS.to_vec(),
+                rename_mode,
+            }
         }
     }
 
@@ -125,19 +148,53 @@ impl ActionButtonLayout {
 
     // Compatibility methods for existing code that accesses ranges directly
     pub fn run_range(&self) -> ButtonRange {
-        self.ranges[0]
+        if !self.rename_mode {
+            self.ranges[0]
+        } else {
+            (0, 0)
+        }
     }
     pub fn cat_range(&self) -> ButtonRange {
-        self.ranges[1]
+        if !self.rename_mode {
+            self.ranges[1]
+        } else {
+            (0, 0)
+        }
     }
     pub fn edit_range(&self) -> ButtonRange {
-        self.ranges[2]
+        if !self.rename_mode {
+            self.ranges[2]
+        } else {
+            (0, 0)
+        }
     }
     pub fn rename_range(&self) -> ButtonRange {
-        self.ranges[3]
+        if !self.rename_mode {
+            self.ranges[3]
+        } else {
+            (0, 0)
+        }
     }
     pub fn delete_range(&self) -> ButtonRange {
-        self.ranges[4]
+        if !self.rename_mode {
+            self.ranges[4]
+        } else {
+            (0, 0)
+        }
+    }
+    pub fn save_range(&self) -> ButtonRange {
+        if self.rename_mode {
+            self.ranges[0]
+        } else {
+            (0, 0)
+        }
+    }
+    pub fn cancel_range(&self) -> ButtonRange {
+        if self.rename_mode {
+            self.ranges[1]
+        } else {
+            (0, 0)
+        }
     }
 }
 
@@ -853,5 +910,71 @@ mod tests {
             get_dialog_button_at_position(dialog_area, button_row, 32),
             None
         );
+    }
+
+    #[test]
+    fn test_action_button_layout_rename_mode() {
+        let rect = create_test_rect();
+        let layout = ActionButtonLayout::new_with_mode(&rect, true);
+
+        // Test that rename mode layout has correct buttons and ranges
+        assert_eq!(layout.get_button_at_position(0), Some(ActionButton::Save));
+        assert_eq!(layout.get_button_at_position(3), Some(ActionButton::Save));
+        assert_eq!(layout.get_button_at_position(5), Some(ActionButton::Save));
+
+        // Test cancel button range (starts after save button + spacing)
+        // "[save]" = 6 chars, " " = 1 char spacing, "[cancel]" starts at position 7
+        assert_eq!(layout.get_button_at_position(7), Some(ActionButton::Cancel));
+        assert_eq!(
+            layout.get_button_at_position(10),
+            Some(ActionButton::Cancel)
+        );
+        assert_eq!(
+            layout.get_button_at_position(14),
+            Some(ActionButton::Cancel)
+        );
+
+        // Test outside ranges
+        assert_eq!(layout.get_button_at_position(6), None); // Between buttons
+        assert_eq!(layout.get_button_at_position(15), None); // After cancel button
+    }
+
+    #[test]
+    fn test_action_button_layout_normal_mode() {
+        let rect = create_test_rect();
+        let layout = ActionButtonLayout::new_with_mode(&rect, false);
+
+        // Test that normal mode still works
+        assert_eq!(layout.get_button_at_position(0), Some(ActionButton::Run));
+        assert_eq!(layout.get_button_at_position(6), Some(ActionButton::Cat));
+        assert_eq!(layout.get_button_at_position(12), Some(ActionButton::Edit));
+    }
+
+    #[test]
+    fn test_save_and_cancel_range_methods() {
+        let rect = create_test_rect();
+
+        // Test rename mode ranges
+        let rename_layout = ActionButtonLayout::new_with_mode(&rect, true);
+        assert_eq!(rename_layout.save_range(), (0, 5)); // "[save]" = 6 chars, so end at 5
+        assert_eq!(rename_layout.cancel_range(), (7, 14)); // "[cancel]" = 8 chars starting at 7
+
+        // Test normal mode ranges (should be (0, 0))
+        let normal_layout = ActionButtonLayout::new_with_mode(&rect, false);
+        assert_eq!(normal_layout.save_range(), (0, 0));
+        assert_eq!(normal_layout.cancel_range(), (0, 0));
+    }
+
+    #[test]
+    fn test_normal_mode_ranges_in_rename_mode() {
+        let rect = create_test_rect();
+        let layout = ActionButtonLayout::new_with_mode(&rect, true);
+
+        // All normal mode ranges should return (0, 0) when in rename mode
+        assert_eq!(layout.run_range(), (0, 0));
+        assert_eq!(layout.cat_range(), (0, 0));
+        assert_eq!(layout.edit_range(), (0, 0));
+        assert_eq!(layout.rename_range(), (0, 0));
+        assert_eq!(layout.delete_range(), (0, 0));
     }
 }
