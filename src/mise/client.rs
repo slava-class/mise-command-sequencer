@@ -1,4 +1,5 @@
 use anyhow::{Context, Result};
+use log::{debug, error, info, trace, warn};
 use std::{path::Path, process::Stdio};
 use tokio::{
     fs,
@@ -25,6 +26,8 @@ impl MiseClient {
 
     /// List all available mise tasks
     pub async fn list_tasks(&self) -> Result<Vec<MiseTask>> {
+        debug!("Starting mise tasks ls --json command");
+
         let output = Command::new("mise")
             .args(["tasks", "ls", "--json"])
             .output()
@@ -32,20 +35,40 @@ impl MiseClient {
             .context("Failed to execute mise tasks ls --json")?;
 
         if !output.status.success() {
-            anyhow::bail!(
-                "mise command failed: {}",
-                String::from_utf8_lossy(&output.stderr)
-            );
+            let stderr_str = String::from_utf8_lossy(&output.stderr);
+            error!("mise tasks ls command failed with stderr: {stderr_str}");
+            anyhow::bail!("mise command failed: {}", stderr_str);
         }
 
-        let tasks: Vec<MiseTask> = serde_json::from_slice(&output.stdout)
-            .context("Failed to parse mise tasks JSON output")?;
+        let stdout_str = String::from_utf8_lossy(&output.stdout);
+        debug!("Raw JSON output ({} bytes)", stdout_str.len());
+
+        if log::log_enabled!(log::Level::Trace) {
+            trace!("Full JSON output: {stdout_str}");
+        }
+
+        let tasks: Vec<MiseTask> = match serde_json::from_slice::<Vec<MiseTask>>(&output.stdout) {
+            Ok(tasks) => {
+                info!("Successfully parsed {} tasks", tasks.len());
+                tasks
+            }
+            Err(e) => {
+                error!("JSON parsing error: {e}");
+                debug!("Full raw output for debugging: {stdout_str}");
+                return Err(anyhow::anyhow!(
+                    "Failed to parse mise tasks JSON output: {}",
+                    e
+                ));
+            }
+        };
 
         Ok(tasks)
     }
 
     /// Get detailed information about a specific task
     pub async fn get_task_info(&self, task_name: &str) -> Result<MiseTaskInfo> {
+        debug!("Starting mise tasks info for task: {task_name}");
+
         let output = Command::new("mise")
             .args(["tasks", "info", task_name, "--json"])
             .output()
@@ -53,14 +76,39 @@ impl MiseClient {
             .context("Failed to execute mise tasks info")?;
 
         if !output.status.success() {
-            anyhow::bail!(
-                "mise command failed: {}",
-                String::from_utf8_lossy(&output.stderr)
+            let stderr_str = String::from_utf8_lossy(&output.stderr);
+            error!(
+                "mise tasks info command failed for task '{task_name}' with stderr: {stderr_str}"
             );
+            anyhow::bail!("mise command failed: {}", stderr_str);
         }
 
-        let task_info: MiseTaskInfo = serde_json::from_slice(&output.stdout)
-            .context("Failed to parse mise task info JSON output")?;
+        let stdout_str = String::from_utf8_lossy(&output.stdout);
+        debug!(
+            "Raw JSON output for task '{}' ({} bytes)",
+            task_name,
+            stdout_str.len()
+        );
+
+        if log::log_enabled!(log::Level::Trace) {
+            trace!("Full JSON output for task '{task_name}': {stdout_str}");
+        }
+
+        let task_info: MiseTaskInfo = match serde_json::from_slice::<MiseTaskInfo>(&output.stdout) {
+            Ok(task_info) => {
+                info!("Successfully parsed task info for '{task_name}'");
+                task_info
+            }
+            Err(e) => {
+                error!("JSON parsing error for task '{task_name}': {e}");
+                debug!("Full raw output for debugging task '{task_name}': {stdout_str}");
+                return Err(anyhow::anyhow!(
+                    "Failed to parse mise task info JSON output for task '{}': {}",
+                    task_name,
+                    e
+                ));
+            }
+        };
 
         Ok(task_info)
     }
@@ -158,35 +206,68 @@ impl MiseClient {
 
     /// Rename a mise task
     pub async fn rename_task(&self, old_name: &str, new_name: &str) -> Result<()> {
+        info!("Starting rename operation: '{old_name}' -> '{new_name}'");
+
         // Validate new name
         if new_name.trim().is_empty() {
+            warn!("Validation failed: new task name is empty");
             anyhow::bail!("New task name cannot be empty");
         }
 
         if old_name == new_name {
+            debug!("No rename needed: names are identical");
             return Ok(()); // No change needed
         }
 
         // Get all existing tasks to check for conflicts
-        let existing_tasks = self.list_tasks().await?;
+        debug!("Fetching existing tasks for conflict check");
+        let existing_tasks = match self.list_tasks().await {
+            Ok(tasks) => {
+                debug!("Found {} existing tasks", tasks.len());
+                tasks
+            }
+            Err(e) => {
+                error!("Failed to fetch existing tasks: {e}");
+                return Err(e);
+            }
+        };
 
         // Find a unique name if there's a conflict
         let final_new_name = self.find_unique_task_name(new_name, &existing_tasks, old_name);
+        if final_new_name != new_name {
+            info!("Name conflict resolved: '{new_name}' adjusted to '{final_new_name}'");
+        }
 
         // First, get task info to determine if it's file-based or config-based
-        let task_info = self.get_task_info(old_name).await?;
+        debug!("Getting task info for '{old_name}'");
+        let task_info = match self.get_task_info(old_name).await {
+            Ok(info) => {
+                debug!(
+                    "Task info retrieved for '{}', source: {}",
+                    old_name, info.source
+                );
+                info
+            }
+            Err(e) => {
+                error!("Failed to get task info for '{old_name}': {e}");
+                return Err(e);
+            }
+        };
 
         let source = &task_info.source;
         if source.ends_with(".toml") {
             // Config-based task - rename in mise.toml
+            debug!("Config-based task detected, updating TOML file: {source}");
             self.rename_task_in_config(source, old_name, &final_new_name)
                 .await?;
         } else {
             // File-based task - rename the file
+            debug!("File-based task detected, renaming file: {source}");
             self.rename_task_file(source, old_name, &final_new_name)
                 .await?;
         }
 
+        info!("Rename operation completed successfully: '{old_name}' -> '{final_new_name}'");
         Ok(())
     }
 

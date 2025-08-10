@@ -5,8 +5,9 @@ coverage = "cargo tarpaulin --config tarpaulin.toml"
 coverage-watch = "cargo watch -x 'tarpaulin --config tarpaulin.toml'"
 fmt = "trunk fmt --all"
 "repomix:copy" = "bunx repomix --copy"
-sequence-20250806-182808 = "mise run repomix:copy"
+sequence-20250806-1 = "mise run repomix:copy"
 
 [tools]
+claude = "latest"
 rust = "latest"
 trunk = "latest"

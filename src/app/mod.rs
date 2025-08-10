@@ -427,15 +427,25 @@ mod tests {
         app.state = AppState::Detail("test".to_string());
         app.task_info = Some(MiseTaskInfo {
             name: "test".to_string(),
-            description: Some("desc".to_string()),
+            aliases: Vec::new(),
+            description: "desc".to_string(),
             source: "source".to_string(),
-            file: None,
+            depends: Vec::new(),
+            depends_post: Vec::new(),
+            wait_for: Vec::new(),
+            env: Vec::new(),
             dir: None,
-            hide: None,
-            alias: None,
-            run: None,
-            depends: None,
-            env: None,
+            hide: false,
+            raw: false,
+            sources: Vec::new(),
+            outputs: Vec::new(),
+            shell: None,
+            quiet: false,
+            silent: false,
+            tools: std::collections::HashMap::new(),
+            run: Vec::new(),
+            file: None,
+            usage_spec: serde_json::Value::Null,
         });
         app.task_output.push_back("output1".to_string());
         app.task_output.push_back("output2".to_string());

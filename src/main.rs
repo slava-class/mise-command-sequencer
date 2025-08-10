@@ -12,6 +12,8 @@ use terminal::{cleanup_terminal, setup_terminal, spawn_input_handler, spawn_tick
 
 #[tokio::main]
 async fn main() -> Result<()> {
+    // Initialize logger - controlled by RUST_LOG environment variable
+    env_logger::init();
     // Setup terminal
     let mut terminal = setup_terminal()?;
 

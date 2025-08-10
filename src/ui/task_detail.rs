@@ -32,8 +32,8 @@ pub fn draw_task_detail(app: &App, f: &mut Frame, task_name: &str) {
             format!("Source: {}", info.source),
         ];
 
-        if let Some(desc) = &info.description {
-            details.push(format!("Description: {desc}"));
+        if !info.description.is_empty() {
+            details.push(format!("Description: {}", info.description));
         }
 
         if let Some(file) = &info.file {
@@ -44,18 +44,25 @@ pub fn draw_task_detail(app: &App, f: &mut Frame, task_name: &str) {
             details.push(format!("Directory: {dir}"));
         }
 
-        if let Some(alias) = &info.alias {
-            details.push(format!("Alias: {alias}"));
+        if !info.aliases.is_empty() {
+            details.push(format!("Aliases: {}", info.aliases.join(", ")));
         }
 
-        if let Some(deps) = &info.depends {
-            details.push(format!("Dependencies: {}", deps.join(", ")));
+        if !info.depends.is_empty() {
+            details.push(format!("Dependencies: {}", info.depends.join(", ")));
         }
 
-        if let Some(env) = &info.env {
+        if !info.env.is_empty() {
             details.push("Environment Variables:".to_string());
-            for (key, value) in env {
-                details.push(format!("  {key} = {value}"));
+            for env_var in &info.env {
+                if let Some(env_str) = env_var.as_str() {
+                    details.push(format!("  {env_str}"));
+                } else {
+                    details.push(format!(
+                        "  {}",
+                        serde_json::to_string(env_var).unwrap_or_default()
+                    ));
+                }
             }
         }
 

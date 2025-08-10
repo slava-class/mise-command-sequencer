@@ -143,7 +143,11 @@ impl App {
     async fn add_sequence_as_task(&mut self) -> Result<()> {
         if let Some(command) = self.sequence_state.generate_mise_task_command() {
             // Generate a task name based on current timestamp
-            let task_name = format!("sequence-{}", chrono::Utc::now().format("%Y%m%d-%H%M%S"));
+            let timestamp = std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .unwrap_or_default()
+                .as_secs();
+            let task_name = format!("sequence-{timestamp}");
 
             // Add task directly to mise.toml using TOML parsing
             let add_result = self.add_task_to_mise_toml(&task_name, &command).await;
@@ -293,34 +297,24 @@ impl App {
                 self.task_output
                     .push_back(format!("=== Task: {task_name} ==="));
 
-                if let Some(description) = &task_info.description {
+                if !task_info.description.is_empty() {
                     self.task_output
-                        .push_back(format!("Description: {description}"));
+                        .push_back(format!("Description: {}", task_info.description));
                 }
 
                 if let Some(file) = &task_info.file {
                     self.task_output.push_back(format!("File: {file}"));
                 }
 
-                if let Some(run_config) = &task_info.run {
+                if !task_info.run.is_empty() {
                     self.task_output.push_back("Run configuration:".to_string());
-                    let run_string = match run_config {
-                        serde_json::Value::Array(arr) => {
-                            // Convert array of strings to joined string
-                            arr.iter()
-                                .filter_map(|v| v.as_str())
-                                .collect::<Vec<&str>>()
-                                .join(" ")
-                        }
-                        serde_json::Value::String(s) => s.clone(),
-                        _ => serde_json::to_string_pretty(run_config).unwrap_or_default(),
-                    };
+                    let run_string = task_info.run.join(" ");
                     self.task_output.push_back(run_string);
                 }
 
-                if let Some(depends) = &task_info.depends {
+                if !task_info.depends.is_empty() {
                     self.task_output
-                        .push_back(format!("Dependencies: {}", depends.join(", ")));
+                        .push_back(format!("Dependencies: {}", task_info.depends.join(", ")));
                 }
             }
             Err(e) => {
